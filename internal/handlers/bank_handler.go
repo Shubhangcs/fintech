@@ -6,9 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"strconv"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/levionstudio/fintech/internal/models"
 	"github.com/levionstudio/fintech/internal/store"
 	"github.com/levionstudio/fintech/internal/utils"
@@ -20,11 +18,13 @@ type BankHandler struct {
 }
 
 func NewBankHandler(bankStore store.BankStore, logger *slog.Logger) *BankHandler {
-	return &BankHandler{bankStore: bankStore, logger: logger}
+	return &BankHandler{
+		bankStore: bankStore,
+		logger:    logger,
+	}
 }
 
-// --- bank handlers ---
-
+// Create Bank Handler
 func (bh *BankHandler) HandleCreateBank(w http.ResponseWriter, r *http.Request) {
 	var bank models.BankModel
 	if err := json.NewDecoder(r.Body).Decode(&bank); err != nil {
@@ -42,11 +42,12 @@ func (bh *BankHandler) HandleCreateBank(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"bank": bank})
+	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"message": "bank created successfully", "bank": bank})
 }
 
+// Update Bank Handler
 func (bh *BankHandler) HandleUpdateBank(w http.ResponseWriter, r *http.Request) {
-	bankID, err := readBankID(r)
+	bankID, err := utils.ReadParamIDInt(r)
 	if err != nil {
 		utils.BadRequest(w, bh.logger, "update bank", err)
 		return
@@ -58,7 +59,8 @@ func (bh *BankHandler) HandleUpdateBank(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if err := bh.bankStore.UpdateBank(bankID, &bank); err != nil {
+	bank.BankID = bankID
+	if err := bh.bankStore.UpdateBank(&bank); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			utils.BadRequest(w, bh.logger, "update bank", errors.New("bank not found"))
 			return
@@ -70,8 +72,9 @@ func (bh *BankHandler) HandleUpdateBank(w http.ResponseWriter, r *http.Request) 
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "bank updated successfully"})
 }
 
+// Delete Bank Handler
 func (bh *BankHandler) HandleDeleteBank(w http.ResponseWriter, r *http.Request) {
-	bankID, err := readBankID(r)
+	bankID, err := utils.ReadParamIDInt(r)
 	if err != nil {
 		utils.BadRequest(w, bh.logger, "delete bank", err)
 		return
@@ -89,6 +92,7 @@ func (bh *BankHandler) HandleDeleteBank(w http.ResponseWriter, r *http.Request) 
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "bank deleted successfully"})
 }
 
+// Get All Banks Handler
 func (bh *BankHandler) HandleGetAllBanks(w http.ResponseWriter, r *http.Request) {
 	banks, err := bh.bankStore.GetAllBanks()
 	if err != nil {
@@ -99,8 +103,7 @@ func (bh *BankHandler) HandleGetAllBanks(w http.ResponseWriter, r *http.Request)
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"banks": banks})
 }
 
-// --- admin bank handlers ---
-
+// Create Admin Bank Handler
 func (bh *BankHandler) HandleCreateAdminBank(w http.ResponseWriter, r *http.Request) {
 	var adminBank models.AdminBankModel
 	if err := json.NewDecoder(r.Body).Decode(&adminBank); err != nil {
@@ -118,11 +121,12 @@ func (bh *BankHandler) HandleCreateAdminBank(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"admin_bank": adminBank})
+	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"message": "admin bank created successfully", "admin_bank": adminBank})
 }
 
+// Update Admin Bank Handler
 func (bh *BankHandler) HandleUpdateAdminBank(w http.ResponseWriter, r *http.Request) {
-	adminBankID, err := readAdminBankID(r)
+	adminBankID, err := utils.ReadParamIDInt(r)
 	if err != nil {
 		utils.BadRequest(w, bh.logger, "update admin bank", err)
 		return
@@ -134,7 +138,8 @@ func (bh *BankHandler) HandleUpdateAdminBank(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if err := bh.bankStore.UpdateAdminBank(adminBankID, &adminBank); err != nil {
+	adminBank.AdminBankID = adminBankID
+	if err := bh.bankStore.UpdateAdminBank(&adminBank); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			utils.BadRequest(w, bh.logger, "update admin bank", errors.New("admin bank not found"))
 			return
@@ -146,8 +151,9 @@ func (bh *BankHandler) HandleUpdateAdminBank(w http.ResponseWriter, r *http.Requ
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "admin bank updated successfully"})
 }
 
+// Delete Admin Bank Handler
 func (bh *BankHandler) HandleDeleteAdminBank(w http.ResponseWriter, r *http.Request) {
-	adminBankID, err := readAdminBankID(r)
+	adminBankID, err := utils.ReadParamIDInt(r)
 	if err != nil {
 		utils.BadRequest(w, bh.logger, "delete admin bank", err)
 		return
@@ -165,6 +171,7 @@ func (bh *BankHandler) HandleDeleteAdminBank(w http.ResponseWriter, r *http.Requ
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "admin bank deleted successfully"})
 }
 
+// Get All Admin Banks Handler
 func (bh *BankHandler) HandleGetAllAdminBanks(w http.ResponseWriter, r *http.Request) {
 	banks, err := bh.bankStore.GetAllAdminBanks()
 	if err != nil {
@@ -173,24 +180,4 @@ func (bh *BankHandler) HandleGetAllAdminBanks(w http.ResponseWriter, r *http.Req
 	}
 
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"admin_banks": banks})
-}
-
-// --- helpers ---
-
-func readBankID(r *http.Request) (int64, error) {
-	idStr := chi.URLParam(r, "id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		return 0, errors.New("invalid bank id")
-	}
-	return id, nil
-}
-
-func readAdminBankID(r *http.Request) (int64, error) {
-	idStr := chi.URLParam(r, "id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		return 0, errors.New("invalid admin bank id")
-	}
-	return id, nil
 }

@@ -16,18 +16,16 @@ func NewPostgresBankStore(db *sql.DB) *PostgresBankStore {
 
 type BankStore interface {
 	CreateBank(bank *models.BankModel) error
-	UpdateBank(bankID int64, bank *models.BankModel) error
-	DeleteBank(bankID int64) error
+	UpdateBank(bank *models.BankModel) error
+	DeleteBank(id int64) error
 	GetAllBanks() ([]models.BankModel, error)
-
 	CreateAdminBank(adminBank *models.AdminBankModel) error
-	UpdateAdminBank(adminBankID int64, adminBank *models.AdminBankModel) error
-	DeleteAdminBank(adminBankID int64) error
+	UpdateAdminBank(adminBank *models.AdminBankModel) error
+	DeleteAdminBank(id int64) error
 	GetAllAdminBanks() ([]models.AdminBankModel, error)
 }
 
-// --- bank ---
-
+// Create Bank
 func (bs *PostgresBankStore) CreateBank(bank *models.BankModel) error {
 	query := `
 	INSERT INTO banks (bank_name, ifsc_code)
@@ -37,28 +35,31 @@ func (bs *PostgresBankStore) CreateBank(bank *models.BankModel) error {
 	return bs.db.QueryRow(query, bank.BankName, bank.IFSCCode).Scan(&bank.BankID)
 }
 
-func (bs *PostgresBankStore) UpdateBank(bankID int64, bank *models.BankModel) error {
+// Update Bank
+func (bs *PostgresBankStore) UpdateBank(bank *models.BankModel) error {
 	query := `
 	UPDATE banks
 	SET bank_name = COALESCE(NULLIF($1, ''), bank_name),
 	    ifsc_code  = COALESCE(NULLIF($2, ''), ifsc_code)
 	WHERE bank_id = $3;
 	`
-	res, err := bs.db.Exec(query, bank.BankName, bank.IFSCCode, bankID)
+	res, err := bs.db.Exec(query, bank.BankName, bank.IFSCCode, bank.BankID)
 	if err != nil {
 		return err
 	}
 	return checkRowsAffected(res)
 }
 
-func (bs *PostgresBankStore) DeleteBank(bankID int64) error {
-	res, err := bs.db.Exec(`DELETE FROM banks WHERE bank_id = $1;`, bankID)
+// Delete Bank
+func (bs *PostgresBankStore) DeleteBank(id int64) error {
+	res, err := bs.db.Exec(`DELETE FROM banks WHERE bank_id = $1;`, id)
 	if err != nil {
 		return err
 	}
 	return checkRowsAffected(res)
 }
 
+// Get All Banks
 func (bs *PostgresBankStore) GetAllBanks() ([]models.BankModel, error) {
 	rows, err := bs.db.Query(`SELECT bank_id, bank_name, ifsc_code FROM banks ORDER BY bank_name;`)
 	if err != nil {
@@ -77,8 +78,7 @@ func (bs *PostgresBankStore) GetAllBanks() ([]models.BankModel, error) {
 	return banks, rows.Err()
 }
 
-// --- admin bank ---
-
+// Create Admin Bank
 func (bs *PostgresBankStore) CreateAdminBank(adminBank *models.AdminBankModel) error {
 	query := `
 	INSERT INTO admin_banks (admin_id, admin_bank_name, admin_bank_account_number, admin_bank_ifsc_code)
@@ -93,7 +93,8 @@ func (bs *PostgresBankStore) CreateAdminBank(adminBank *models.AdminBankModel) e
 	).Scan(&adminBank.AdminBankID)
 }
 
-func (bs *PostgresBankStore) UpdateAdminBank(adminBankID int64, adminBank *models.AdminBankModel) error {
+// Update Admin Bank
+func (bs *PostgresBankStore) UpdateAdminBank(adminBank *models.AdminBankModel) error {
 	query := `
 	UPDATE admin_banks
 	SET admin_bank_name           = COALESCE(NULLIF($1, ''), admin_bank_name),
@@ -105,7 +106,7 @@ func (bs *PostgresBankStore) UpdateAdminBank(adminBankID int64, adminBank *model
 		adminBank.AdminBankName,
 		adminBank.AdminBankAccountNumber,
 		adminBank.AdminBankIFSCCode,
-		adminBankID,
+		adminBank.AdminBankID,
 	)
 	if err != nil {
 		return err
@@ -113,14 +114,16 @@ func (bs *PostgresBankStore) UpdateAdminBank(adminBankID int64, adminBank *model
 	return checkRowsAffected(res)
 }
 
-func (bs *PostgresBankStore) DeleteAdminBank(adminBankID int64) error {
-	res, err := bs.db.Exec(`DELETE FROM admin_banks WHERE admin_bank_id = $1;`, adminBankID)
+// Delete Admin Bank
+func (bs *PostgresBankStore) DeleteAdminBank(id int64) error {
+	res, err := bs.db.Exec(`DELETE FROM admin_banks WHERE admin_bank_id = $1;`, id)
 	if err != nil {
 		return err
 	}
 	return checkRowsAffected(res)
 }
 
+// Get All Admin Banks
 func (bs *PostgresBankStore) GetAllAdminBanks() ([]models.AdminBankModel, error) {
 	query := `
 	SELECT admin_bank_id, admin_id, admin_bank_name, admin_bank_account_number, admin_bank_ifsc_code
