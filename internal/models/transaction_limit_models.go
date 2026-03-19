@@ -16,8 +16,8 @@ type TransactionLimitModel struct {
 	RetailerID  string    `json:"retailer_id"`
 	LimitAmount float64   `json:"limit_amount"`
 	Service     string    `json:"service"`
-	CreatedAT   time.Time `json:"created_at,omitempty"`
-	UpdatedAT   time.Time `json:"updated_at,omitempty"`
+	CreatedAT   time.Time `json:"created_at"`
+	UpdatedAT   time.Time `json:"updated_at"`
 }
 
 func (t *TransactionLimitModel) Validate() error {

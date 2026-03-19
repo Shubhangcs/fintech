@@ -201,6 +201,7 @@ func transactionLimitRoutes(router *chi.Mux, app *app.Application) {
 		r.Put("/update/{id}", app.TransactionLimitHandler.HandleUpdateTransactionLimit)
 		r.Delete("/delete/{id}", app.TransactionLimitHandler.HandleDeleteTransactionLimit)
 		r.Get("/all", app.TransactionLimitHandler.HandleGetAllTransactionLimits)
+		r.Post("/get/limit/service", app.TransactionLimitHandler.HandleGetTransactionLimitByRetailerIDAndService)
 	})
 }
 

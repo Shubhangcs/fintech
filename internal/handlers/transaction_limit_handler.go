@@ -6,9 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"strconv"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/levionstudio/fintech/internal/models"
 	"github.com/levionstudio/fintech/internal/store"
 	"github.com/levionstudio/fintech/internal/utils"
@@ -23,6 +21,7 @@ func NewTransactionLimitHandler(transactionLimitStore store.TransactionLimitStor
 	return &TransactionLimitHandler{transactionLimitStore: transactionLimitStore, logger: logger}
 }
 
+// Create Transaction Limit Handler
 func (th *TransactionLimitHandler) HandleCreateTransactionLimit(w http.ResponseWriter, r *http.Request) {
 	var t models.TransactionLimitModel
 	if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
@@ -40,11 +39,12 @@ func (th *TransactionLimitHandler) HandleCreateTransactionLimit(w http.ResponseW
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"transaction_limit": t})
+	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"message": "transaction limit created successfully", "transaction_limit": t})
 }
 
+// Update Transaction Limit Handler
 func (th *TransactionLimitHandler) HandleUpdateTransactionLimit(w http.ResponseWriter, r *http.Request) {
-	id, err := readLimitID(r)
+	id, err := utils.ReadParamIDInt(r)
 	if err != nil {
 		utils.BadRequest(w, th.logger, "update transaction limit", err)
 		return
@@ -61,7 +61,8 @@ func (th *TransactionLimitHandler) HandleUpdateTransactionLimit(w http.ResponseW
 		return
 	}
 
-	if err := th.transactionLimitStore.UpdateTransactionLimit(id, &t); err != nil {
+	t.LimitID = id
+	if err := th.transactionLimitStore.UpdateTransactionLimit(&t); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			utils.BadRequest(w, th.logger, "update transaction limit", errors.New("transaction limit not found"))
 			return
@@ -73,8 +74,9 @@ func (th *TransactionLimitHandler) HandleUpdateTransactionLimit(w http.ResponseW
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "transaction limit updated successfully"})
 }
 
+// Delete Transaction Limit Handler
 func (th *TransactionLimitHandler) HandleDeleteTransactionLimit(w http.ResponseWriter, r *http.Request) {
-	id, err := readLimitID(r)
+	id, err := utils.ReadParamIDInt(r)
 	if err != nil {
 		utils.BadRequest(w, th.logger, "delete transaction limit", err)
 		return
@@ -92,6 +94,7 @@ func (th *TransactionLimitHandler) HandleDeleteTransactionLimit(w http.ResponseW
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "transaction limit deleted successfully"})
 }
 
+// Get All Transaction Limits Handler
 func (th *TransactionLimitHandler) HandleGetAllTransactionLimits(w http.ResponseWriter, r *http.Request) {
 	p := utils.ReadPaginationParams(r)
 
@@ -101,13 +104,28 @@ func (th *TransactionLimitHandler) HandleGetAllTransactionLimits(w http.Response
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"transaction_limits": limits})
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "transaction limits fetched successfully", "transaction_limits": limits})
 }
 
-func readLimitID(r *http.Request) (int64, error) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+// Get Transaction Limit By Retailer ID and Service Handler
+func (th *TransactionLimitHandler) HandleGetTransactionLimitByRetailerIDAndService(w http.ResponseWriter, r *http.Request) {
+	var req models.TransactionLimitModel
+	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		return 0, errors.New("invalid limit id")
+		utils.BadRequest(w, th.logger, "get transaction limit by retailer id and service", err)
+		return
 	}
-	return id, nil
+
+	if req.RetailerID == "" || req.Service == "" {
+		utils.BadRequest(w, th.logger, "get transaction limit by retailer id and service", errors.New("invalid request format retailer id and service is required"))
+		return
+	}
+
+	limit, isDefault, err := th.transactionLimitStore.GetTransactionLimitByRetailerIDAndService(&req)
+	if err != nil {
+		utils.ServerError(w, th.logger, "get transaction limit by retailer id and service", err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "transaction limit fetched successfully", "limit": limit, "is_default": isDefault})
 }
