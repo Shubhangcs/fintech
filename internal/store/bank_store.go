@@ -43,11 +43,8 @@ func (bs *PostgresBankStore) UpdateBank(bank *models.BankModel) error {
 	    ifsc_code  = COALESCE(NULLIF($2, ''), ifsc_code)
 	WHERE bank_id = $3;
 	`
-	res, err := bs.db.Exec(query, bank.BankName, bank.IFSCCode, bank.BankID)
-	if err != nil {
-		return err
-	}
-	return checkRowsAffected(res)
+	_, err := bs.db.Exec(query, bank.BankName, bank.IFSCCode, bank.BankID)
+	return err
 }
 
 // Delete Bank
@@ -102,16 +99,13 @@ func (bs *PostgresBankStore) UpdateAdminBank(adminBank *models.AdminBankModel) e
 	    admin_bank_ifsc_code      = COALESCE(NULLIF($3, ''), admin_bank_ifsc_code)
 	WHERE admin_bank_id = $4;
 	`
-	res, err := bs.db.Exec(query,
+	_, err := bs.db.Exec(query,
 		adminBank.AdminBankName,
 		adminBank.AdminBankAccountNumber,
 		adminBank.AdminBankIFSCCode,
 		adminBank.AdminBankID,
 	)
-	if err != nil {
-		return err
-	}
-	return checkRowsAffected(res)
+	return err
 }
 
 // Delete Admin Bank

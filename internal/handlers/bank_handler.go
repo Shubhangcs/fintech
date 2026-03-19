@@ -100,7 +100,7 @@ func (bh *BankHandler) HandleGetAllBanks(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"banks": banks})
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "banks fetched successfully", "banks": banks})
 }
 
 // Create Admin Bank Handler
@@ -179,5 +179,5 @@ func (bh *BankHandler) HandleGetAllAdminBanks(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"admin_banks": banks})
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "admin banks fetched successfully", "admin_banks": banks})
 }
