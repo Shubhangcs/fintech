@@ -208,6 +208,8 @@ func (rs *PostgresRetailerStore) GetRetailerByID(id string) (*models.RetailerMod
 		retailer_name,
 		retailer_phone,
 		retailer_email,
+		retailer_password,
+		retailer_mpin,
 		retailer_aadhar_number,
 		retailer_pan_number,
 		retailer_date_of_birth,
@@ -238,6 +240,8 @@ func (rs *PostgresRetailerStore) GetRetailerByID(id string) (*models.RetailerMod
 		&re.RetailerName,
 		&re.RetailerPhone,
 		&re.RetailerEmail,
+		&re.RetailerPassword,
+		&re.RetailerMpin,
 		&re.RetailerAadharNumber,
 		&re.RetailerPanNumber,
 		&re.RetailerDateOfBirth,
@@ -267,6 +271,7 @@ func (rs *PostgresRetailerStore) GetRetailersByDistributorID(distributorID strin
 	query := `
 	SELECT
 		retailer_id, distributor_id, retailer_name, retailer_phone, retailer_email,
+		retailer_password, retailer_mpin,
 		retailer_aadhar_number, retailer_pan_number, retailer_date_of_birth, retailer_gender,
 		retailer_city, retailer_state, retailer_address, retailer_pincode,
 		retailer_business_name, retailer_business_type, retailer_gst_number,
@@ -287,12 +292,13 @@ func (rs *PostgresRetailerStore) GetRetailersByMasterDistributorID(masterDistrib
 	query := `
 	SELECT
 		re.retailer_id, re.distributor_id, re.retailer_name, re.retailer_phone, re.retailer_email,
+		re.retailer_password, re.retailer_mpin,
 		re.retailer_aadhar_number, re.retailer_pan_number, re.retailer_date_of_birth, re.retailer_gender,
 		re.retailer_city, re.retailer_state, re.retailer_address, re.retailer_pincode,
 		re.retailer_business_name, re.retailer_business_type, re.retailer_gst_number,
 		re.retailer_kyc_status, re.retailer_wallet_balance,
-		re.is_retailer_blocked, retailer_aadhar_image, retailer_pan_image,
-		retailer_image, re.created_at, re.updated_at
+		re.is_retailer_blocked, re.retailer_aadhar_image, re.retailer_pan_image,
+		re.retailer_image, re.created_at, re.updated_at
 	FROM retailers re
 	JOIN distributors d ON re.distributor_id = d.distributor_id
 	WHERE d.master_distributor_id = $1
@@ -308,12 +314,13 @@ func (rs *PostgresRetailerStore) GetRetailersByAdminID(adminID string, limit, of
 	query := `
 	SELECT
 		re.retailer_id, re.distributor_id, re.retailer_name, re.retailer_phone, re.retailer_email,
+		re.retailer_password, re.retailer_mpin,
 		re.retailer_aadhar_number, re.retailer_pan_number, re.retailer_date_of_birth, re.retailer_gender,
 		re.retailer_city, re.retailer_state, re.retailer_address, re.retailer_pincode,
 		re.retailer_business_name, re.retailer_business_type, re.retailer_gst_number,
 		re.retailer_kyc_status, re.retailer_wallet_balance,
-		re.is_retailer_blocked, retailer_aadhar_image, retailer_pan_image,
-		retailer_image, re.created_at, re.updated_at
+		re.is_retailer_blocked, re.retailer_aadhar_image, re.retailer_pan_image,
+		re.retailer_image, re.created_at, re.updated_at
 	FROM retailers re
 	JOIN distributors d ON re.distributor_id = d.distributor_id
 	JOIN master_distributors md ON d.master_distributor_id = md.master_distributor_id
@@ -418,6 +425,8 @@ func scanRetailers(db *sql.DB, query string, args ...any) ([]models.RetailerMode
 			&re.RetailerName,
 			&re.RetailerPhone,
 			&re.RetailerEmail,
+			&re.RetailerPassword,
+			&re.RetailerMpin,
 			&re.RetailerAadharNumber,
 			&re.RetailerPanNumber,
 			&re.RetailerDateOfBirth,
