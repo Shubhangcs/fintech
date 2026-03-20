@@ -248,7 +248,7 @@ func (mh *MasterDistributorHandler) HandleGetMasterDistributorsByAdminID(w http.
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"master_distributors": mds})
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "master distributors fetched successfully", "master_distributors": mds})
 }
 
 // Master Distributor Login Handler

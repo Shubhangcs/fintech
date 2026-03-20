@@ -14,13 +14,16 @@ var (
 	RechargeKitAPI1     = os.Getenv("RECHARGE_KIT_API_1")
 	RechargeKitAPI2     = os.Getenv("RECHARGE_KIT_API_2")
 	RechargeKitAPIToken = os.Getenv("RECHARGE_KIT_API_TOKEN")
-	PaysprintAPIToken   = os.Getenv("PAYSPRINT_API_TOKEN")
+)
+
+const (
+	PennyDrop      = "/api/v1/verification/penny_drop_v2"
+	Payout         = "/rkitpayout/payoutTransfer"
+	MobileRecharge = "/recharge/prepaid"
 )
 
 var apiHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
-// PostRequest sends a JSON POST to url and decodes the response into res.
-// authKey/authValue set the auth header e.g. "Token","<jwt>" or "Authorization","Bearer <token>".
 func PostRequest(url, authKey, authValue string, body map[string]any, res any) error {
 	b, err := json.Marshal(body)
 	if err != nil {
@@ -47,14 +50,12 @@ func PostRequest(url, authKey, authValue string, body map[string]any, res any) e
 	return nil
 }
 
-// GetRequest sends a GET to url and decodes the response into res.
-// authKey/authValue set the auth header e.g. "Token","<jwt>" or "Authorization","Bearer <token>".
 func GetRequest(url, authKey, authValue string, res any) error {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return fmt.Errorf("GetRequest build: %w", err)
 	}
-	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set(authKey, authValue)
 
 	resp, err := apiHTTPClient.Do(req)

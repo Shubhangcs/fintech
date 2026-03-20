@@ -77,7 +77,7 @@ func (fh *FundTransferHandler) handleTransfer(
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"fund_transfer": req})
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "fund transfer successful", "fund_transfer": req})
 }
 
 func (fh *FundTransferHandler) HandleGetFundTransfersByTransfererID(w http.ResponseWriter, r *http.Request) {
@@ -97,7 +97,7 @@ func (fh *FundTransferHandler) HandleGetFundTransfersByTransfererID(w http.Respo
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"fund_transfers": transfers})
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "fund transfers fetched successfully", "fund_transfers": transfers})
 }
 
 func (fh *FundTransferHandler) HandleGetFundTransfersByReceiverID(w http.ResponseWriter, r *http.Request) {
@@ -117,7 +117,7 @@ func (fh *FundTransferHandler) HandleGetFundTransfersByReceiverID(w http.Respons
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"fund_transfers": transfers})
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "fund transfers fetched successfully", "fund_transfers": transfers})
 }
 
 func (fh *FundTransferHandler) HandleGetAllFundTransfers(w http.ResponseWriter, r *http.Request) {
@@ -131,7 +131,7 @@ func (fh *FundTransferHandler) HandleGetAllFundTransfers(w http.ResponseWriter, 
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"fund_transfers": transfers})
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "fund transfers fetched successfully", "fund_transfers": transfers})
 }
 
 func isClientErr(err error) bool {

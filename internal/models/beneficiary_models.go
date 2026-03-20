@@ -13,8 +13,8 @@ type BeneficiaryModel struct {
 	AccountNumber       string    `json:"account_number"`
 	BeneficiaryName     string    `json:"beneficiary_name"`
 	BeneficiaryPhone    string    `json:"beneficiary_phone"`
-	BeneficiaryVerified bool      `json:"beneficiary_verified,omitempty"`
-	CreatedAT           time.Time `json:"created_at,omitempty"`
+	BeneficiaryVerified bool      `json:"beneficiary_verified"`
+	CreatedAT           time.Time `json:"created_at"`
 }
 
 // VerifyBeneficiaryRequest is the request body for the verify endpoint.

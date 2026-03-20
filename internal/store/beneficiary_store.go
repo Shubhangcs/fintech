@@ -4,6 +4,7 @@ import (
 	"database/sql"
 
 	"github.com/levionstudio/fintech/internal/models"
+	"github.com/levionstudio/fintech/internal/utils"
 )
 
 type PostgresBeneficiaryStore struct {
@@ -16,12 +17,13 @@ func NewPostgresBeneficiaryStore(db *sql.DB) *PostgresBeneficiaryStore {
 
 type BeneficiaryStore interface {
 	CreateBeneficiary(b *models.BeneficiaryModel) error
-	UpdateBeneficiary(beneficiaryID string, b *models.BeneficiaryModel) error
+	UpdateBeneficiary(b *models.BeneficiaryModel) error
 	DeleteBeneficiary(beneficiaryID string) error
-	GetBeneficiary(beneficiaryID string) (*models.BeneficiaryModel, error)
+	GetBeneficiaries(mobileNumber string, p utils.PaginationParams) ([]models.BeneficiaryModel, error)
 	VerifyBeneficiary(beneficiaryID string) error
 }
 
+// Create Beneficiary
 func (bs *PostgresBeneficiaryStore) CreateBeneficiary(b *models.BeneficiaryModel) error {
 	query := `
 	INSERT INTO beneficiaries (mobile_number, bank_name, ifsc_code, account_number, beneficiary_name, beneficiary_phone)
@@ -34,7 +36,8 @@ func (bs *PostgresBeneficiaryStore) CreateBeneficiary(b *models.BeneficiaryModel
 	).Scan(&b.BeneficiaryID, &b.BeneficiaryVerified, &b.CreatedAT)
 }
 
-func (bs *PostgresBeneficiaryStore) UpdateBeneficiary(beneficiaryID string, b *models.BeneficiaryModel) error {
+// Update Beneficiary
+func (bs *PostgresBeneficiaryStore) UpdateBeneficiary(b *models.BeneficiaryModel) error {
 	query := `
 	UPDATE beneficiaries
 	SET mobile_number     = COALESCE(NULLIF($1, ''), mobile_number),
@@ -48,7 +51,7 @@ func (bs *PostgresBeneficiaryStore) UpdateBeneficiary(beneficiaryID string, b *m
 	res, err := bs.db.Exec(query,
 		b.MobileNumber, b.BankName, b.IFSCCode,
 		b.AccountNumber, b.BeneficiaryName, b.BeneficiaryPhone,
-		beneficiaryID,
+		b.BeneficiaryID,
 	)
 	if err != nil {
 		return err
@@ -56,6 +59,7 @@ func (bs *PostgresBeneficiaryStore) UpdateBeneficiary(beneficiaryID string, b *m
 	return checkRowsAffected(res)
 }
 
+// Delete Beneficiary
 func (bs *PostgresBeneficiaryStore) DeleteBeneficiary(beneficiaryID string) error {
 	res, err := bs.db.Exec(`DELETE FROM beneficiaries WHERE beneficiary_id = $1;`, beneficiaryID)
 	if err != nil {
@@ -64,6 +68,7 @@ func (bs *PostgresBeneficiaryStore) DeleteBeneficiary(beneficiaryID string) erro
 	return checkRowsAffected(res)
 }
 
+// Verify Beneficiary
 func (bs *PostgresBeneficiaryStore) VerifyBeneficiary(beneficiaryID string) error {
 	res, err := bs.db.Exec(
 		`UPDATE beneficiaries SET beneficiary_verified = TRUE WHERE beneficiary_id = $1;`,
@@ -75,20 +80,38 @@ func (bs *PostgresBeneficiaryStore) VerifyBeneficiary(beneficiaryID string) erro
 	return checkRowsAffected(res)
 }
 
-func (bs *PostgresBeneficiaryStore) GetBeneficiary(beneficiaryID string) (*models.BeneficiaryModel, error) {
+// Get Beneficiaries
+func (bs *PostgresBeneficiaryStore) GetBeneficiaries(mobileNumber string, p utils.PaginationParams) ([]models.BeneficiaryModel, error) {
 	query := `
 	SELECT beneficiary_id, mobile_number, bank_name, ifsc_code, account_number,
 	       beneficiary_name, beneficiary_phone, beneficiary_verified, created_at
 	FROM beneficiaries
-	WHERE beneficiary_id = $1;
+	WHERE mobile_number = $1
+	ORDER BY created_at DESC
+	LIMIT $2 OFFSET $3;
 	`
-	var b models.BeneficiaryModel
-	err := bs.db.QueryRow(query, beneficiaryID).Scan(
-		&b.BeneficiaryID, &b.MobileNumber, &b.BankName, &b.IFSCCode, &b.AccountNumber,
-		&b.BeneficiaryName, &b.BeneficiaryPhone, &b.BeneficiaryVerified, &b.CreatedAT,
-	)
+	rows, err := bs.db.Query(query, mobileNumber, p.Limit, p.Offset)
 	if err != nil {
 		return nil, err
 	}
-	return &b, nil
+	defer rows.Close()
+
+	var beneficiaries []models.BeneficiaryModel
+	for rows.Next() {
+		var b models.BeneficiaryModel
+		if err := rows.Scan(
+			&b.BeneficiaryID, &b.MobileNumber, &b.BankName, &b.IFSCCode, &b.AccountNumber,
+			&b.BeneficiaryName, &b.BeneficiaryPhone, &b.BeneficiaryVerified, &b.CreatedAT,
+		); err != nil {
+			return nil, err
+		}
+		beneficiaries = append(beneficiaries, b)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if beneficiaries == nil {
+		beneficiaries = []models.BeneficiaryModel{}
+	}
+	return beneficiaries, nil
 }

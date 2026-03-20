@@ -124,7 +124,7 @@ func (fh *FundRequestHandler) HandleGetFundRequestsByRequesterID(w http.Response
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"fund_requests": requests})
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "fund requests fetched successfully", "fund_requests": requests})
 }
 
 func (fh *FundRequestHandler) HandleGetFundRequestsByRequestToID(w http.ResponseWriter, r *http.Request) {
@@ -145,7 +145,7 @@ func (fh *FundRequestHandler) HandleGetFundRequestsByRequestToID(w http.Response
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"fund_requests": requests})
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "fund requests fetched successfully", "fund_requests": requests})
 }
 
 func (fh *FundRequestHandler) HandleGetAllFundRequests(w http.ResponseWriter, r *http.Request) {
@@ -159,7 +159,7 @@ func (fh *FundRequestHandler) HandleGetAllFundRequests(w http.ResponseWriter, r 
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"fund_requests": requests})
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "fund requests fetched successfully", "fund_requests": requests})
 }
 
 // --- private helpers ---
@@ -200,7 +200,7 @@ func (fh *FundRequestHandler) handleCreate(
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"fund_request": req})
+	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"message": "fund request created successfully", "fund_request": req})
 }
 
 func readFundRequestID(r *http.Request) (int64, error) {

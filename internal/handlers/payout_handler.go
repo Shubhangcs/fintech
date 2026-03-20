@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/levionstudio/fintech/internal/models"
 	"github.com/levionstudio/fintech/internal/store"
 	"github.com/levionstudio/fintech/internal/utils"
@@ -53,7 +54,7 @@ func (ph *PayoutHandler) HandleCreatePayoutTransaction(w http.ResponseWriter, r 
 	}
 
 	// Phase 1: debit retailer + write PENDING record atomically
-	reqID := utils.GenerateReqID()
+	reqID := uuid.NewString()
 	transactionID, err := ph.payoutStore.InitiatePayoutTransaction(&req, reqID, commision)
 	if err != nil {
 		utils.BadRequest(w, ph.logger, "create payout: initiate", err)
@@ -135,7 +136,7 @@ func (ph *PayoutHandler) HandleGetAllPayoutTransactions(w http.ResponseWriter, r
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"payout_transactions": transactions})
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "payout transactions fetched successfully", "payout_transactions": transactions})
 }
 
 func (ph *PayoutHandler) HandleGetPayoutTransactionsByRetailerID(w http.ResponseWriter, r *http.Request) {
@@ -153,7 +154,7 @@ func (ph *PayoutHandler) HandleGetPayoutTransactionsByRetailerID(w http.Response
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"payout_transactions": transactions})
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "payout transactions fetched successfully", "payout_transactions": transactions})
 }
 
 func (ph *PayoutHandler) HandlePayoutRefund(w http.ResponseWriter, r *http.Request) {

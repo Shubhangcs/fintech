@@ -39,7 +39,7 @@ func (wh *WalletTransactionHandler) HandleCreateWalletTransaction(w http.Respons
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"wallet_transaction": req})
+	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"message": "wallet transaction created successfully", "wallet_transaction": req})
 }
 
 func (wh *WalletTransactionHandler) HandleGetWalletTransactionsByUserID(w http.ResponseWriter, r *http.Request) {
@@ -59,6 +59,6 @@ func (wh *WalletTransactionHandler) HandleGetWalletTransactionsByUserID(w http.R
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"wallet_transactions": transactions})
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "wallet transactions fetched successfully", "wallet_transactions": transactions})
 }
 

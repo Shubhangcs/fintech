@@ -7,12 +7,12 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/levionstudio/fintech/internal/models"
 	"github.com/levionstudio/fintech/internal/store"
 	"github.com/levionstudio/fintech/internal/utils"
 )
-
-const paysprintPennyDropPath = "/api/v1/verification/penny_drop_v2"
 
 type BeneficiaryHandler struct {
 	beneficiaryStore store.BeneficiaryStore
@@ -23,6 +23,7 @@ func NewBeneficiaryHandler(beneficiaryStore store.BeneficiaryStore, logger *slog
 	return &BeneficiaryHandler{beneficiaryStore: beneficiaryStore, logger: logger}
 }
 
+// Create Beneficiary Handler
 func (bh *BeneficiaryHandler) HandleCreateBeneficiary(w http.ResponseWriter, r *http.Request) {
 	var b models.BeneficiaryModel
 	if err := json.NewDecoder(r.Body).Decode(&b); err != nil {
@@ -40,9 +41,10 @@ func (bh *BeneficiaryHandler) HandleCreateBeneficiary(w http.ResponseWriter, r *
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"beneficiary": b})
+	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"message": "beneficiary created successfully", "beneficiary": b})
 }
 
+// Update Beneficiary Handler
 func (bh *BeneficiaryHandler) HandleUpdateBeneficiary(w http.ResponseWriter, r *http.Request) {
 	id, err := utils.ReadParamID(r)
 	if err != nil {
@@ -56,7 +58,8 @@ func (bh *BeneficiaryHandler) HandleUpdateBeneficiary(w http.ResponseWriter, r *
 		return
 	}
 
-	if err := bh.beneficiaryStore.UpdateBeneficiary(id, &b); err != nil {
+	b.BeneficiaryID = id
+	if err := bh.beneficiaryStore.UpdateBeneficiary(&b); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			utils.BadRequest(w, bh.logger, "update beneficiary", errors.New("beneficiary not found"))
 			return
@@ -68,6 +71,7 @@ func (bh *BeneficiaryHandler) HandleUpdateBeneficiary(w http.ResponseWriter, r *
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "beneficiary updated successfully"})
 }
 
+// Delete Beneficiary Handler
 func (bh *BeneficiaryHandler) HandleDeleteBeneficiary(w http.ResponseWriter, r *http.Request) {
 	id, err := utils.ReadParamID(r)
 	if err != nil {
@@ -87,6 +91,7 @@ func (bh *BeneficiaryHandler) HandleDeleteBeneficiary(w http.ResponseWriter, r *
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "beneficiary deleted successfully"})
 }
 
+// Verify Beneficiary Handler
 func (bh *BeneficiaryHandler) HandleVerifyBeneficiary(w http.ResponseWriter, r *http.Request) {
 	id, err := utils.ReadParamID(r)
 	if err != nil {
@@ -105,7 +110,7 @@ func (bh *BeneficiaryHandler) HandleVerifyBeneficiary(w http.ResponseWriter, r *
 		return
 	}
 
-	reqID := utils.GenerateReqID()
+	reqID := id + uuid.NewString()
 	token, err := utils.GeneratePaysprintToken(reqID)
 	if err != nil {
 		utils.ServerError(w, bh.logger, "verify beneficiary", err)
@@ -113,7 +118,7 @@ func (bh *BeneficiaryHandler) HandleVerifyBeneficiary(w http.ResponseWriter, r *
 	}
 
 	var apiResp models.VerifyBeneficiaryResponse
-	err = utils.PostRequest(utils.PaysprintAPI+paysprintPennyDropPath, "Token", token, map[string]any{
+	err = utils.PostRequest(utils.PaysprintAPI+utils.PennyDrop, "Token", token, map[string]any{
 		"refid":          reqID,
 		"account_number": req.AccountNumber,
 		"ifsc_code":      req.IFSCCode,
@@ -140,22 +145,21 @@ func (bh *BeneficiaryHandler) HandleVerifyBeneficiary(w http.ResponseWriter, r *
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "beneficiary verified successfully", "data": apiResp.Data})
 }
 
-func (bh *BeneficiaryHandler) HandleGetBeneficiary(w http.ResponseWriter, r *http.Request) {
-	id, err := utils.ReadParamID(r)
-	if err != nil {
-		utils.BadRequest(w, bh.logger, "get beneficiary", err)
+// Get Beneficiaries Handler
+func (bh *BeneficiaryHandler) HandleGetBeneficiaries(w http.ResponseWriter, r *http.Request) {
+	mobileNumber := chi.URLParam(r, "mobile")
+	if mobileNumber == "" {
+		utils.BadRequest(w, bh.logger, "get beneficiaries", errors.New("mobile_number is required"))
 		return
 	}
 
-	b, err := bh.beneficiaryStore.GetBeneficiary(id)
+	p := utils.ReadPaginationParams(r)
+
+	beneficiaries, err := bh.beneficiaryStore.GetBeneficiaries(mobileNumber, p)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			utils.BadRequest(w, bh.logger, "get beneficiary", errors.New("beneficiary not found"))
-			return
-		}
-		utils.ServerError(w, bh.logger, "get beneficiary", err)
+		utils.ServerError(w, bh.logger, "get beneficiaries", err)
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"beneficiary": b})
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "beneficiaries fetched successfully", "beneficiaries": beneficiaries})
 }

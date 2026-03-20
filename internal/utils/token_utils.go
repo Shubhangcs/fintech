@@ -1,18 +1,37 @@
 package utils
 
 import (
-	cryptorand "crypto/rand"
 	"errors"
 	"fmt"
-	"math/rand"
 	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
-var paysprintJWTKey = []byte("UTA5U1VEQXdNREF5TXpFMFRucEpORTVFYTNsT2VsbDNUbmM5UFE9PQ==")
-var paysprintPartnerID = os.Getenv("PAYSPRINT_PARTNER_ID")
+var (
+	PaysprintJWTKey    = []byte(os.Getenv("PAYSPRINT_JWT_KEY"))
+	PaysprintPartnerID = os.Getenv("PAYSPRINT_PARTNER_ID")
+)
+
+// Paysprint Token Generation
+
+func GeneratePaysprintToken(reqid string) (string, error) {
+	claims := jwt.MapClaims{
+		"partnerId": PaysprintPartnerID,
+		"reqid":     reqid,
+		"timestamp": time.Now().Unix(),
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	signed, err := token.SignedString(PaysprintJWTKey)
+	if err != nil {
+		return "", fmt.Errorf("GeneratePaysprintToken: %w", err)
+	}
+	return signed, nil
+}
+
+// Server Token Generation
 
 type TokenClaims struct {
 	UserID   string `json:"user_id"`
@@ -25,37 +44,6 @@ var (
 	expiry      = time.Hour * 24
 	tokenIssuer = os.Getenv("JWT_TOKEN_ISSUER")
 )
-
-// GenerateReqID returns a unique request ID: unix milliseconds + 6 random digits.
-func GenerateReqID() string {
-	return fmt.Sprintf("%d%06d", time.Now().UnixMilli(), rand.Intn(1000000))
-}
-
-// GenerateUUID returns a random UUID v4 string.
-func GenerateUUID() string {
-	b := make([]byte, 16)
-	_, _ = cryptorand.Read(b)
-	b[6] = (b[6] & 0x0f) | 0x40
-	b[8] = (b[8] & 0x3f) | 0x80
-	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:])
-}
-
-// GeneratePaysprintToken generates a Paysprint JWT for the given reqid.
-// Always call GenerateReqID() first and pass the same value to the API payload.
-func GeneratePaysprintToken(reqid string) (string, error) {
-	claims := jwt.MapClaims{
-		"partnerId": paysprintPartnerID,
-		"reqid":     reqid,
-		"timestamp": time.Now().Unix(),
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	signed, err := token.SignedString(paysprintJWTKey)
-	if err != nil {
-		return "", fmt.Errorf("GeneratePaysprintToken: %w", err)
-	}
-	return signed, nil
-}
 
 func GenerateToken(userID, userName string) (string, error) {
 	claims := TokenClaims{
