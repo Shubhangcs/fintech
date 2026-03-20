@@ -22,6 +22,7 @@ func NewWalletTransactionHandler(walletStore store.WalletTransactionStore, logge
 	}
 }
 
+// Create Wallet Transaction Handler
 func (wh *WalletTransactionHandler) HandleCreateWalletTransaction(w http.ResponseWriter, r *http.Request) {
 	var req models.WalletTransactionModel
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -42,6 +43,7 @@ func (wh *WalletTransactionHandler) HandleCreateWalletTransaction(w http.Respons
 	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"message": "wallet transaction created successfully", "wallet_transaction": req})
 }
 
+// Get Wallet Transactions By User ID Handler
 func (wh *WalletTransactionHandler) HandleGetWalletTransactionsByUserID(w http.ResponseWriter, r *http.Request) {
 	userID, err := utils.ReadParamID(r)
 	if err != nil {
@@ -49,11 +51,9 @@ func (wh *WalletTransactionHandler) HandleGetWalletTransactionsByUserID(w http.R
 		return
 	}
 
-	p := utils.ReadPaginationParams(r)
-	startDate := utils.ParseDateParam(r, "start_date")
-	endDate := utils.ParseDateParam(r, "end_date")
+	p := utils.ReadQueryParams(r)
 
-	transactions, err := wh.walletStore.GetWalletTransactionsByUserID(userID, p.Limit, p.Offset, startDate, endDate)
+	transactions, err := wh.walletStore.GetWalletTransactionsByUserID(userID, p)
 	if err != nil {
 		utils.ServerError(w, wh.logger, "get wallet transactions", err)
 		return
@@ -61,4 +61,3 @@ func (wh *WalletTransactionHandler) HandleGetWalletTransactionsByUserID(w http.R
 
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "wallet transactions fetched successfully", "wallet_transactions": transactions})
 }
-

@@ -2,9 +2,9 @@ package store
 
 import (
 	"database/sql"
-	"time"
 
 	"github.com/levionstudio/fintech/internal/models"
+	"github.com/levionstudio/fintech/internal/utils"
 )
 
 type PostgresWalletTransactionStore struct {
@@ -17,7 +17,7 @@ func NewPostgresWalletTransactionStore(db *sql.DB) *PostgresWalletTransactionSto
 
 type WalletTransactionStore interface {
 	CreateWalletTransaction(wt *models.WalletTransactionModel) error
-	GetWalletTransactionsByUserID(userID string, limit, offset int, startDate, endDate *time.Time) ([]models.WalletTransactionModel, error)
+	GetWalletTransactionsByUserID(userID string, p utils.QueryParams) ([]models.WalletTransactionModel, error)
 }
 
 // Create Wallet Transaction
@@ -54,8 +54,23 @@ func (ws *PostgresWalletTransactionStore) CreateWalletTransaction(wt *models.Wal
 	)
 }
 
-func (ws *PostgresWalletTransactionStore) GetWalletTransactionsByUserID(userID string, limit, offset int, startDate, endDate *time.Time) ([]models.WalletTransactionModel, error) {
+// Get Wallet Transactions By User ID
+func (ws *PostgresWalletTransactionStore) GetWalletTransactionsByUserID(userID string, p utils.QueryParams) ([]models.WalletTransactionModel, error) {
 	query := `
+	WITH user_info AS (
+		SELECT admin_name AS user_name, NULL::TEXT AS user_business_name
+		FROM admins WHERE admin_id = $1
+		UNION ALL
+		SELECT master_distributor_name, master_distributor_business_name
+		FROM master_distributors WHERE master_distributor_id = $1
+		UNION ALL
+		SELECT distributor_name, distributor_business_name
+		FROM distributors WHERE distributor_id = $1
+		UNION ALL
+		SELECT retailer_name, retailer_business_name
+		FROM retailers WHERE retailer_id = $1
+		LIMIT 1
+	)
 	SELECT
 		wt.wallet_transaction_id,
 		wt.user_id,
@@ -67,13 +82,10 @@ func (ws *PostgresWalletTransactionStore) GetWalletTransactionsByUserID(userID s
 		wt.transaction_reason,
 		wt.remarks,
 		wt.created_at,
-		COALESCE(a.admin_name, md.master_distributor_name, d.distributor_name, r.retailer_name, '') AS user_name,
-		COALESCE(md.master_distributor_business_name, d.distributor_business_name, r.retailer_business_name) AS user_business_name
+		COALESCE(ui.user_name, '') AS user_name,
+		ui.user_business_name
 	FROM wallet_transactions wt
-	LEFT JOIN admins a               ON wt.user_id = a.admin_id
-	LEFT JOIN master_distributors md ON wt.user_id = md.master_distributor_id
-	LEFT JOIN distributors d         ON wt.user_id = d.distributor_id
-	LEFT JOIN retailers r            ON wt.user_id = r.retailer_id
+	CROSS JOIN user_info ui
 	WHERE wt.user_id = $1
 	AND wt.created_at >= COALESCE($4, '-infinity'::TIMESTAMPTZ)
 	AND wt.created_at <= COALESCE($5, 'infinity'::TIMESTAMPTZ)
@@ -81,13 +93,13 @@ func (ws *PostgresWalletTransactionStore) GetWalletTransactionsByUserID(userID s
 	LIMIT $2 OFFSET $3;
 	`
 
-	rows, err := ws.db.Query(query, userID, limit, offset, startDate, endDate)
+	rows, err := ws.db.Query(query, userID, p.Limit, p.Offset, p.StartDate, p.EndDate)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var transactions []models.WalletTransactionModel
+	transactions := []models.WalletTransactionModel{}
 	for rows.Next() {
 		var wt models.WalletTransactionModel
 		err = rows.Scan(
