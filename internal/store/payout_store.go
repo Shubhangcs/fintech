@@ -19,9 +19,9 @@ func NewPostgresPayoutStore(db *sql.DB) *PostgresPayoutStore {
 }
 
 type PayoutStore interface {
-	GetPayoutCommision(retailerID string, amount float64) (*models.PayoutCommission, error)
-	InitiatePayoutTransaction(req *models.CreatePayoutRequest, partnerRequestID string, commission *models.PayoutCommission) (string, error)
-	FinalizePayoutTransaction(transactionID, orderID, operatorTxID, status string, commission *models.PayoutCommission, retailerID string) error
+	GetPayoutCommision(retailerID string, amount float64) (*models.PayoutCommision, error)
+	InitiatePayoutTransaction(req *models.CreatePayoutRequest, partnerRequestID string, commission *models.PayoutCommision) (string, error)
+	FinalizePayoutTransaction(transactionID, orderID, operatorTxID, status string, commission *models.PayoutCommision, retailerID string) error
 	FailPayoutTransaction(transactionID, orderID, operatorTxID string) error
 	GetAllPayoutTransactions(limit, offset int) ([]models.PayoutTransactionModel, error)
 	GetPayoutTransactionsByRetailerID(retailerID string, limit, offset int) ([]models.PayoutTransactionModel, error)
@@ -29,7 +29,7 @@ type PayoutStore interface {
 	UpdatePayoutTransaction(transactionID string, req *models.UpdatePayoutTransactionRequest) error
 }
 
-func (ps *PostgresPayoutStore) GetPayoutCommision(retailerID string, amount float64) (*models.PayoutCommission, error) {
+func (ps *PostgresPayoutStore) GetPayoutCommision(retailerID string, amount float64) (*models.PayoutCommision, error) {
 
 	var (
 		adminId             string
@@ -50,7 +50,7 @@ func (ps *PostgresPayoutStore) GetPayoutCommision(retailerID string, amount floa
 		return nil, err
 	}
 
-	getCommission := func(userId string) (*models.PayoutCommission, error) {
+	getCommision := func(userId string) (*models.PayoutCommision, error) {
 		query := `
 			SELECT
 				total_commision,
@@ -63,7 +63,7 @@ func (ps *PostgresPayoutStore) GetPayoutCommision(retailerID string, amount floa
 			LIMIT 1;
 		`
 
-		var c models.PayoutCommission
+		var c models.PayoutCommision
 		err := ps.db.QueryRow(query, userId).Scan(
 			&c.Total,
 			&c.Admin,
@@ -81,7 +81,7 @@ func (ps *PostgresPayoutStore) GetPayoutCommision(retailerID string, amount floa
 		return &c, nil
 	}
 
-	var commission *models.PayoutCommission
+	var commision *models.PayoutCommision
 
 	ids := []string{
 		retailerID,
@@ -90,19 +90,19 @@ func (ps *PostgresPayoutStore) GetPayoutCommision(retailerID string, amount floa
 	}
 
 	for _, id := range ids {
-		c, err := getCommission(id)
+		c, err := getCommision(id)
 		if err != nil {
 			return nil, err
 		}
 		if c != nil {
-			commission = c
+			commision = c
 			break
 		}
 	}
 
-	// Default commission if nothing found
-	if commission == nil {
-		commission = &models.PayoutCommission{
+	// Default commision if nothing found
+	if commision == nil {
+		commision = &models.PayoutCommision{
 			Total:             1.2,
 			Retailer:          0.5,
 			Distributor:       0.2,
@@ -112,21 +112,21 @@ func (ps *PostgresPayoutStore) GetPayoutCommision(retailerID string, amount floa
 	}
 
 	// Final calculation (percentage → amount)
-	totalAmount := (commission.Total / 100) * amount
+	totalAmount := (commision.Total / 100) * amount
 
-	return &models.PayoutCommission{
+	return &models.PayoutCommision{
 		Total:             totalAmount,
-		Retailer:          totalAmount * commission.Retailer,
-		Distributor:       totalAmount * commission.Distributor,
-		MasterDistributor: totalAmount * commission.MasterDistributor,
-		Admin:             totalAmount * commission.Admin,
+		Retailer:          totalAmount * commision.Retailer,
+		Distributor:       totalAmount * commision.Distributor,
+		MasterDistributor: totalAmount * commision.MasterDistributor,
+		Admin:             totalAmount * commision.Admin,
 	}, nil
 }
 
 // InitiatePayoutTransaction is Phase 1: validates the retailer, debits the wallet,
 // and writes a PENDING payout record — all in one atomic transaction.
 // The external API must be called AFTER this returns successfully.
-func (ps *PostgresPayoutStore) InitiatePayoutTransaction(req *models.CreatePayoutRequest, partnerRequestID string, commission *models.PayoutCommission) (string, error) {
+func (ps *PostgresPayoutStore) InitiatePayoutTransaction(req *models.CreatePayoutRequest, partnerRequestID string, commission *models.PayoutCommision) (string, error) {
 	tx, err := ps.db.Begin()
 	if err != nil {
 		return "", err
@@ -222,7 +222,7 @@ func (ps *PostgresPayoutStore) InitiatePayoutTransaction(req *models.CreatePayou
 
 // FinalizePayoutTransaction is Phase 2 on success/pending:
 // credits commissions to the hierarchy and updates the payout record status.
-func (ps *PostgresPayoutStore) FinalizePayoutTransaction(transactionID, orderID, operatorTxID, status string, commission *models.PayoutCommission, retailerID string) error {
+func (ps *PostgresPayoutStore) FinalizePayoutTransaction(transactionID, orderID, operatorTxID, status string, commission *models.PayoutCommision, retailerID string) error {
 	tx, err := ps.db.Begin()
 	if err != nil {
 		return err
@@ -242,11 +242,11 @@ func (ps *PostgresPayoutStore) FinalizePayoutTransaction(transactionID, orderID,
 		return err
 	}
 
-	type commissionEntry struct {
+	type commisionEntry struct {
 		userID string
 		amount float64
 	}
-	entries := []commissionEntry{
+	entries := []commisionEntry{
 		{adminID, commission.Admin},
 		{masterDistributorID, commission.MasterDistributor},
 		{distributorID, commission.Distributor},
@@ -394,11 +394,11 @@ func (ps *PostgresPayoutStore) PayoutRefund(transactionID string) error {
 	}
 
 	// Claw back commissions from hierarchy
-	type commissionEntry struct {
+	type commisionEntry struct {
 		userID string
 		amount float64
 	}
-	for _, entry := range []commissionEntry{
+	for _, entry := range []commisionEntry{
 		{adminID, adminComm},
 		{masterDistributorID, mdComm},
 		{distributorID, distComm},
@@ -542,10 +542,10 @@ func scanPayoutTransactions(db *sql.DB, query string, args ...any) ([]models.Pay
 			&pt.IFSCCode,
 			&pt.Amount,
 			&pt.TransferType,
-			&pt.AdminCommission,
-			&pt.MasterDistributorCommission,
-			&pt.DistributorCommission,
-			&pt.RetailerCommission,
+			&pt.AdminCommision,
+			&pt.MasterDistributorCommision,
+			&pt.DistributorCommision,
+			&pt.RetailerCommision,
 			&pt.BeforeBalance,
 			&pt.AfterBalance,
 			&pt.TransactionStatus,

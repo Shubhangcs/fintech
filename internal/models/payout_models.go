@@ -44,8 +44,8 @@ func (r *CreatePayoutRequest) Validate() error {
 	return nil
 }
 
-// PayoutCommission holds the calculated commission amounts for a payout.
-type PayoutCommission struct {
+// PayoutCommision holds the calculated commision amounts for a payout.
+type PayoutCommision struct {
 	Total             float64
 	Admin             float64
 	MasterDistributor float64
@@ -68,10 +68,10 @@ type PayoutTransactionModel struct {
 	IFSCCode                    string    `json:"ifsc_code"`
 	Amount                      float64   `json:"amount"`
 	TransferType                string    `json:"transfer_type"`
-	AdminCommission             float64   `json:"admin_commision"`
-	MasterDistributorCommission float64   `json:"master_distributor_commision"`
-	DistributorCommission       float64   `json:"distributor_commision"`
-	RetailerCommission          float64   `json:"retailer_commision"`
+	AdminCommision             float64   `json:"admin_commision"`
+	MasterDistributorCommision float64   `json:"master_distributor_commision"`
+	DistributorCommision       float64   `json:"distributor_commision"`
+	RetailerCommision          float64   `json:"retailer_commision"`
 	BeforeBalance               float64   `json:"before_balance"`
 	AfterBalance                float64   `json:"after_balance"`
 	TransactionStatus           string    `json:"payout_transaction_status"`

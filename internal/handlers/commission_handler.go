@@ -6,103 +6,98 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"strconv"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/levionstudio/fintech/internal/models"
 	"github.com/levionstudio/fintech/internal/store"
 	"github.com/levionstudio/fintech/internal/utils"
 )
 
-type CommissionHandler struct {
-	commissionStore store.CommissionStore
-	logger          *slog.Logger
+type CommisionHandler struct {
+	commisionStore store.CommisionStore
+	logger         *slog.Logger
 }
 
-func NewCommissionHandler(commissionStore store.CommissionStore, logger *slog.Logger) *CommissionHandler {
-	return &CommissionHandler{commissionStore: commissionStore, logger: logger}
+func NewCommisionHandler(commisionStore store.CommisionStore, logger *slog.Logger) *CommisionHandler {
+	return &CommisionHandler{commisionStore: commisionStore, logger: logger}
 }
 
-func (ch *CommissionHandler) HandleCreateCommission(w http.ResponseWriter, r *http.Request) {
-	var c models.CommissionModel
+// Create Commision Handler
+func (ch *CommisionHandler) HandleCreateCommision(w http.ResponseWriter, r *http.Request) {
+	var c models.CommisionModel
 	if err := json.NewDecoder(r.Body).Decode(&c); err != nil {
-		utils.BadRequest(w, ch.logger, "create commission", err)
+		utils.BadRequest(w, ch.logger, "create commision", err)
 		return
 	}
 
 	if err := c.Validate(); err != nil {
-		utils.BadRequest(w, ch.logger, "create commission", err)
+		utils.BadRequest(w, ch.logger, "create commision", err)
 		return
 	}
 
-	if err := ch.commissionStore.CreateCommission(&c); err != nil {
-		utils.ServerError(w, ch.logger, "create commission", err)
+	if err := ch.commisionStore.CreateCommision(&c); err != nil {
+		utils.ServerError(w, ch.logger, "create commision", err)
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"commission": c})
+	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"message": "commision created successfully", "commision": c})
 }
 
-func (ch *CommissionHandler) HandleUpdateCommission(w http.ResponseWriter, r *http.Request) {
-	id, err := readCommissionID(r)
+// Update Commision Handler
+func (ch *CommisionHandler) HandleUpdateCommision(w http.ResponseWriter, r *http.Request) {
+	id, err := utils.ReadParamIDInt(r)
 	if err != nil {
-		utils.BadRequest(w, ch.logger, "update commission", err)
+		utils.BadRequest(w, ch.logger, "update commision", err)
 		return
 	}
 
-	var c models.CommissionModel
+	var c models.CommisionModel
 	if err := json.NewDecoder(r.Body).Decode(&c); err != nil {
-		utils.BadRequest(w, ch.logger, "update commission", err)
+		utils.BadRequest(w, ch.logger, "update commision", err)
 		return
 	}
 
-	if err := ch.commissionStore.UpdateCommission(id, &c); err != nil {
+	c.CommisionID = id
+	if err := ch.commisionStore.UpdateCommision(&c); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			utils.BadRequest(w, ch.logger, "update commission", errors.New("commission not found"))
+			utils.BadRequest(w, ch.logger, "update commision", errors.New("commision not found"))
 			return
 		}
-		utils.ServerError(w, ch.logger, "update commission", err)
+		utils.ServerError(w, ch.logger, "update commision", err)
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "commission updated successfully"})
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "commision updated successfully"})
 }
 
-func (ch *CommissionHandler) HandleDeleteCommission(w http.ResponseWriter, r *http.Request) {
-	id, err := readCommissionID(r)
+// Delete Commision Handler
+func (ch *CommisionHandler) HandleDeleteCommision(w http.ResponseWriter, r *http.Request) {
+	id, err := utils.ReadParamIDInt(r)
 	if err != nil {
-		utils.BadRequest(w, ch.logger, "delete commission", err)
+		utils.BadRequest(w, ch.logger, "delete commision", err)
 		return
 	}
 
-	if err := ch.commissionStore.DeleteCommission(id); err != nil {
+	if err := ch.commisionStore.DeleteCommision(id); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			utils.BadRequest(w, ch.logger, "delete commission", errors.New("commission not found"))
+			utils.BadRequest(w, ch.logger, "delete commision", errors.New("commision not found"))
 			return
 		}
-		utils.ServerError(w, ch.logger, "delete commission", err)
+		utils.ServerError(w, ch.logger, "delete commision", err)
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "commission deleted successfully"})
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "commision deleted successfully"})
 }
 
-func (ch *CommissionHandler) HandleGetCommissions(w http.ResponseWriter, r *http.Request) {
+// Get Commisions Handler
+func (ch *CommisionHandler) HandleGetCommisions(w http.ResponseWriter, r *http.Request) {
 	p := utils.ReadPaginationParams(r)
 
-	commissions, err := ch.commissionStore.GetCommissions(p.Limit, p.Offset)
+	commisions, err := ch.commisionStore.GetAllCommisions(p.Limit, p.Offset)
 	if err != nil {
-		utils.ServerError(w, ch.logger, "get commissions", err)
+		utils.ServerError(w, ch.logger, "get commisions", err)
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"commissions": commissions})
-}
-
-func readCommissionID(r *http.Request) (int64, error) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		return 0, errors.New("invalid commission id")
-	}
-	return id, nil
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "commisions fetched successfully", "commisions": commisions})
 }

@@ -45,16 +45,16 @@ func (ph *PayoutHandler) HandleCreatePayoutTransaction(w http.ResponseWriter, r 
 		return
 	}
 
-	// Look up commission before initiating — so we know the total cost upfront
-	commission, err := ph.payoutStore.GetPayoutCommision(req.RetailerID, req.Amount)
+	// Look up commision before initiating — so we know the total cost upfront
+	commision, err := ph.payoutStore.GetPayoutCommision(req.RetailerID, req.Amount)
 	if err != nil {
-		utils.ServerError(w, ph.logger, "create payout: get commission", err)
+		utils.ServerError(w, ph.logger, "create payout: get commision", err)
 		return
 	}
 
 	// Phase 1: debit retailer + write PENDING record atomically
 	reqID := utils.GenerateReqID()
-	transactionID, err := ph.payoutStore.InitiatePayoutTransaction(&req, reqID, commission)
+	transactionID, err := ph.payoutStore.InitiatePayoutTransaction(&req, reqID, commision)
 	if err != nil {
 		utils.BadRequest(w, ph.logger, "create payout: initiate", err)
 		return
@@ -97,7 +97,7 @@ func (ph *PayoutHandler) HandleCreatePayoutTransaction(w http.ResponseWriter, r 
 	// response_code 1 = success, 2 = pending, others = failure
 	switch apiResp.ResponseCode {
 	case 1: // SUCCESS
-		if finalErr := ph.payoutStore.FinalizePayoutTransaction(transactionID, apiResp.OrderID, apiResp.TxnID, "SUCCESS", commission, req.RetailerID); finalErr != nil {
+		if finalErr := ph.payoutStore.FinalizePayoutTransaction(transactionID, apiResp.OrderID, apiResp.TxnID, "SUCCESS", commision, req.RetailerID); finalErr != nil {
 			ph.logger.Error("create payout: finalize success", "error", finalErr, "transaction_id", transactionID)
 		}
 		utils.WriteJSON(w, http.StatusOK, utils.Envelope{
@@ -107,7 +107,7 @@ func (ph *PayoutHandler) HandleCreatePayoutTransaction(w http.ResponseWriter, r 
 		})
 
 	case 2: // PENDING
-		if finalErr := ph.payoutStore.FinalizePayoutTransaction(transactionID, apiResp.OrderID, apiResp.TxnID, "PENDING", commission, req.RetailerID); finalErr != nil {
+		if finalErr := ph.payoutStore.FinalizePayoutTransaction(transactionID, apiResp.OrderID, apiResp.TxnID, "PENDING", commision, req.RetailerID); finalErr != nil {
 			ph.logger.Error("create payout: finalize pending", "error", finalErr, "transaction_id", transactionID)
 		}
 		utils.WriteJSON(w, http.StatusAccepted, utils.Envelope{

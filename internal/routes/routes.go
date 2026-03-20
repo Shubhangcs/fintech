@@ -23,7 +23,7 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 	fundTransferRoutes(router, app)
 	fundRequestRoutes(router, app)
 	bankRoutes(router, app)
-	commissionRoutes(router, app)
+	commisionRoutes(router, app)
 	transactionLimitRoutes(router, app)
 	ticketRoutes(router, app)
 	beneficiaryRoutes(router, app)
@@ -205,14 +205,14 @@ func transactionLimitRoutes(router *chi.Mux, app *app.Application) {
 	})
 }
 
-func commissionRoutes(router *chi.Mux, app *app.Application) {
-	router.Route("/commission", func(r chi.Router) {
+func commisionRoutes(router *chi.Mux, app *app.Application) {
+	router.Route("/commision", func(r chi.Router) {
 		r.Use(middlewares.AuthorizationMiddleware)
 
-		r.Post("/create", app.CommissionHandler.HandleCreateCommission)
-		r.Put("/update/{id}", app.CommissionHandler.HandleUpdateCommission)
-		r.Delete("/delete/{id}", app.CommissionHandler.HandleDeleteCommission)
-		r.Get("/all", app.CommissionHandler.HandleGetCommissions)
+		r.Post("/create", app.CommisionHandler.HandleCreateCommision)
+		r.Put("/update/{id}", app.CommisionHandler.HandleUpdateCommision)
+		r.Delete("/delete/{id}", app.CommisionHandler.HandleDeleteCommision)
+		r.Get("/all", app.CommisionHandler.HandleGetCommisions)
 	})
 }
 

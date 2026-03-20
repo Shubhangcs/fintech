@@ -22,7 +22,7 @@ type Application struct {
 	FundTransferHandler      *handlers.FundTransferHandler
 	FundRequestHandler       *handlers.FundRequestHandler
 	BankHandler              *handlers.BankHandler
-	CommissionHandler        *handlers.CommissionHandler
+	CommisionHandler         *handlers.CommisionHandler
 	TransactionLimitHandler  *handlers.TransactionLimitHandler
 	TicketHandler            *handlers.TicketHandler
 	BeneficiaryHandler       *handlers.BeneficiaryHandler
@@ -51,7 +51,7 @@ func NewApplication() (*Application, error) {
 	fundTransferStore := store.NewPostgresFundTransferStore(pgdb)
 	fundRequestStore := store.NewPostgresFundRequestStore(pgdb)
 	bankStore := store.NewPostgresBankStore(pgdb)
-	commissionStore := store.NewPostgresCommissionStore(pgdb)
+	commisionStore := store.NewPostgresCommisionStore(pgdb)
 	transactionLimitStore := store.NewPostgresTransactionLimitStore(pgdb)
 	ticketStore := store.NewPostgresTicketStore(pgdb)
 	beneficiaryStore := store.NewPostgresBeneficiaryStore(pgdb)
@@ -66,7 +66,7 @@ func NewApplication() (*Application, error) {
 	fundTransferHandler := handlers.NewFundTransferHandler(fundTransferStore, logger)
 	fundRequestHandler := handlers.NewFundRequestHandler(fundRequestStore, logger)
 	bankHandler := handlers.NewBankHandler(bankStore, logger)
-	commissionHandler := handlers.NewCommissionHandler(commissionStore, logger)
+	commisionHandler := handlers.NewCommisionHandler(commisionStore, logger)
 	transactionLimitHandler := handlers.NewTransactionLimitHandler(transactionLimitStore, logger)
 	ticketHandler := handlers.NewTicketHandler(ticketStore, logger)
 	beneficiaryHandler := handlers.NewBeneficiaryHandler(beneficiaryStore, logger)
@@ -83,7 +83,7 @@ func NewApplication() (*Application, error) {
 		FundTransferHandler:      fundTransferHandler,
 		FundRequestHandler:       fundRequestHandler,
 		BankHandler:              bankHandler,
-		CommissionHandler:        commissionHandler,
+		CommisionHandler:         commisionHandler,
 		TransactionLimitHandler:  transactionLimitHandler,
 		TicketHandler:            ticketHandler,
 		BeneficiaryHandler:       beneficiaryHandler,
