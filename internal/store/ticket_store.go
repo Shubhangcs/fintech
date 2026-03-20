@@ -2,9 +2,10 @@ package store
 
 import (
 	"database/sql"
-	"time"
+	"errors"
 
 	"github.com/levionstudio/fintech/internal/models"
+	"github.com/levionstudio/fintech/internal/utils"
 )
 
 type PostgresTicketStore struct {
@@ -17,11 +18,12 @@ func NewPostgresTicketStore(db *sql.DB) *PostgresTicketStore {
 
 type TicketStore interface {
 	CreateTicket(t *models.TicketModel) error
-	UpdateTicket(ticketID int64, t *models.TicketModel) error
+	UpdateTicket(t *models.TicketModel) error
 	DeleteTicket(ticketID int64) error
-	UpdateTicketClearStatus(ticketID int64, isCleared bool) error
-	GetAllTickets(limit, offset int, startDate, endDate *time.Time) ([]models.TicketModel, error)
-	GetTicketsByUserID(userID string, limit, offset int, startDate, endDate *time.Time) ([]models.TicketModel, error)
+	UpdateTicketClearStatus(t *models.TicketModel) error
+	GetAllTickets(p utils.QueryParams) ([]models.TicketModel, error)
+	GetTicketsByUserID(userID string, p utils.QueryParams) ([]models.TicketModel, error)
+	GetAdminIDByUserID(userID string) (string, error)
 }
 
 // ticketSelectBase joins all user tables so every list query includes user_name and user_business_name.
@@ -44,6 +46,7 @@ LEFT JOIN distributors d        ON t.user_id = d.distributor_id
 LEFT JOIN retailers r           ON t.user_id = r.retailer_id
 `
 
+// Create Ticket
 func (ts *PostgresTicketStore) CreateTicket(t *models.TicketModel) error {
 	query := `
 	INSERT INTO ticket (admin_id, user_id, ticket_title, ticket_description)
@@ -54,7 +57,8 @@ func (ts *PostgresTicketStore) CreateTicket(t *models.TicketModel) error {
 		Scan(&t.TicketID, &t.IsTicketCleared, &t.CreatedAT, &t.UpdatedAT)
 }
 
-func (ts *PostgresTicketStore) UpdateTicket(ticketID int64, t *models.TicketModel) error {
+// Update Ticket
+func (ts *PostgresTicketStore) UpdateTicket(t *models.TicketModel) error {
 	query := `
 	UPDATE ticket
 	SET ticket_title       = COALESCE(NULLIF($1, ''), ticket_title),
@@ -62,13 +66,14 @@ func (ts *PostgresTicketStore) UpdateTicket(ticketID int64, t *models.TicketMode
 	    updated_at         = CURRENT_TIMESTAMP
 	WHERE ticket_id = $3;
 	`
-	res, err := ts.db.Exec(query, t.TicketTitle, t.TicketDescription, ticketID)
+	res, err := ts.db.Exec(query, t.TicketTitle, t.TicketDescription, t.TicketID)
 	if err != nil {
 		return err
 	}
 	return checkRowsAffected(res)
 }
 
+// Delete Ticket
 func (ts *PostgresTicketStore) DeleteTicket(ticketID int64) error {
 	res, err := ts.db.Exec(`DELETE FROM ticket WHERE ticket_id = $1;`, ticketID)
 	if err != nil {
@@ -77,31 +82,34 @@ func (ts *PostgresTicketStore) DeleteTicket(ticketID int64) error {
 	return checkRowsAffected(res)
 }
 
-func (ts *PostgresTicketStore) UpdateTicketClearStatus(ticketID int64, isCleared bool) error {
+// Update Ticket Clear Status
+func (ts *PostgresTicketStore) UpdateTicketClearStatus(t *models.TicketModel) error {
 	query := `
 	UPDATE ticket
 	SET is_ticket_cleared = $1,
 	    updated_at        = CURRENT_TIMESTAMP
 	WHERE ticket_id = $2;
 	`
-	res, err := ts.db.Exec(query, isCleared, ticketID)
+	res, err := ts.db.Exec(query, t.IsTicketCleared, t.TicketID)
 	if err != nil {
 		return err
 	}
 	return checkRowsAffected(res)
 }
 
-func (ts *PostgresTicketStore) GetAllTickets(limit, offset int, startDate, endDate *time.Time) ([]models.TicketModel, error) {
+// Get All Tickets
+func (ts *PostgresTicketStore) GetAllTickets(p utils.QueryParams) ([]models.TicketModel, error) {
 	query := ticketSelectBase + `
 	WHERE t.created_at >= COALESCE($3, '-infinity'::TIMESTAMPTZ)
 	AND   t.created_at <= COALESCE($4, 'infinity'::TIMESTAMPTZ)
 	ORDER BY t.created_at DESC
 	LIMIT $1 OFFSET $2;
 	`
-	return scanTickets(ts.db, query, limit, offset, startDate, endDate)
+	return scanTickets(ts.db, query, p.Limit, p.Offset, p.StartDate, p.EndDate)
 }
 
-func (ts *PostgresTicketStore) GetTicketsByUserID(userID string, limit, offset int, startDate, endDate *time.Time) ([]models.TicketModel, error) {
+// Get Tickets By User ID
+func (ts *PostgresTicketStore) GetTicketsByUserID(userID string, p utils.QueryParams) ([]models.TicketModel, error) {
 	query := ticketSelectBase + `
 	WHERE t.user_id = $1
 	AND   t.created_at >= COALESCE($4, '-infinity'::TIMESTAMPTZ)
@@ -109,7 +117,36 @@ func (ts *PostgresTicketStore) GetTicketsByUserID(userID string, limit, offset i
 	ORDER BY t.created_at DESC
 	LIMIT $2 OFFSET $3;
 	`
-	return scanTickets(ts.db, query, userID, limit, offset, startDate, endDate)
+	return scanTickets(ts.db, query, userID, p.Limit, p.Offset, p.StartDate, p.EndDate)
+}
+
+// GetAdminIDByUserID resolves the admin for any user in the hierarchy.
+func (ts *PostgresTicketStore) GetAdminIDByUserID(userID string) (string, error) {
+	query := `
+	SELECT admin_id FROM (
+		SELECT admin_id FROM admins WHERE admin_id = $1
+		UNION ALL
+		SELECT admin_id FROM master_distributors WHERE master_distributor_id = $1
+		UNION ALL
+		SELECT md.admin_id FROM distributors d
+			JOIN master_distributors md ON d.master_distributor_id = md.master_distributor_id
+			WHERE d.distributor_id = $1
+		UNION ALL
+		SELECT md.admin_id FROM retailers r
+			JOIN distributors d ON r.distributor_id = d.distributor_id
+			JOIN master_distributors md ON d.master_distributor_id = md.master_distributor_id
+			WHERE r.retailer_id = $1
+	) AS hierarchy LIMIT 1;
+	`
+	var adminID string
+	err := ts.db.QueryRow(query, userID).Scan(&adminID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", errors.New("user not found")
+		}
+		return "", err
+	}
+	return adminID, nil
 }
 
 func scanTickets(db *sql.DB, query string, args ...any) ([]models.TicketModel, error) {

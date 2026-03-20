@@ -3,6 +3,7 @@ package utils
 import (
 	"net/http"
 	"strconv"
+	"time"
 )
 
 type PaginationParams struct {
@@ -22,4 +23,21 @@ func ReadPaginationParams(r *http.Request) PaginationParams {
 	}
 
 	return PaginationParams{Limit: limit, Offset: offset}
+}
+
+type QueryParams struct {
+	Limit     int
+	Offset    int
+	StartDate *time.Time
+	EndDate   *time.Time
+}
+
+func ReadQueryParams(r *http.Request) QueryParams {
+	p := ReadPaginationParams(r)
+	return QueryParams{
+		Limit:     p.Limit,
+		Offset:    p.Offset,
+		StartDate: ParseDateParam(r, "start_date"),
+		EndDate:   ParseDateParam(r, "end_date"),
+	}
 }

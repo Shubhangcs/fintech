@@ -6,9 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"strconv"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/levionstudio/fintech/internal/models"
 	"github.com/levionstudio/fintech/internal/store"
 	"github.com/levionstudio/fintech/internal/utils"
@@ -23,6 +21,7 @@ func NewTicketHandler(ticketStore store.TicketStore, logger *slog.Logger) *Ticke
 	return &TicketHandler{ticketStore: ticketStore, logger: logger}
 }
 
+// Create Ticket Handler
 func (th *TicketHandler) HandleCreateTicket(w http.ResponseWriter, r *http.Request) {
 	var t models.TicketModel
 	if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
@@ -35,16 +34,24 @@ func (th *TicketHandler) HandleCreateTicket(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	adminID, err := th.ticketStore.GetAdminIDByUserID(t.UserID)
+	if err != nil {
+		utils.BadRequest(w, th.logger, "create ticket", err)
+		return
+	}
+	t.AdminID = adminID
+
 	if err := th.ticketStore.CreateTicket(&t); err != nil {
 		utils.ServerError(w, th.logger, "create ticket", err)
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"ticket": t})
+	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"message": "ticket created successfully", "ticket": t})
 }
 
+// Update Ticket Handler
 func (th *TicketHandler) HandleUpdateTicket(w http.ResponseWriter, r *http.Request) {
-	id, err := readTicketID(r)
+	id, err := utils.ReadParamIDInt(r)
 	if err != nil {
 		utils.BadRequest(w, th.logger, "update ticket", err)
 		return
@@ -56,7 +63,8 @@ func (th *TicketHandler) HandleUpdateTicket(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if err := th.ticketStore.UpdateTicket(id, &t); err != nil {
+	t.TicketID = id
+	if err := th.ticketStore.UpdateTicket(&t); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			utils.BadRequest(w, th.logger, "update ticket", errors.New("ticket not found"))
 			return
@@ -68,8 +76,9 @@ func (th *TicketHandler) HandleUpdateTicket(w http.ResponseWriter, r *http.Reque
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "ticket updated successfully"})
 }
 
+// Delete Ticket Handler
 func (th *TicketHandler) HandleDeleteTicket(w http.ResponseWriter, r *http.Request) {
-	id, err := readTicketID(r)
+	id, err := utils.ReadParamIDInt(r)
 	if err != nil {
 		utils.BadRequest(w, th.logger, "delete ticket", err)
 		return
@@ -87,22 +96,22 @@ func (th *TicketHandler) HandleDeleteTicket(w http.ResponseWriter, r *http.Reque
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "ticket deleted successfully"})
 }
 
+// Update Ticket Clear Status Handler
 func (th *TicketHandler) HandleUpdateTicketClearStatus(w http.ResponseWriter, r *http.Request) {
-	id, err := readTicketID(r)
+	id, err := utils.ReadParamIDInt(r)
 	if err != nil {
 		utils.BadRequest(w, th.logger, "update ticket clear status", err)
 		return
 	}
 
-	var body struct {
-		IsTicketCleared bool `json:"is_ticket_cleared"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	var req models.TicketModel
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.BadRequest(w, th.logger, "update ticket clear status", err)
 		return
 	}
 
-	if err := th.ticketStore.UpdateTicketClearStatus(id, body.IsTicketCleared); err != nil {
+	req.TicketID = id
+	if err := th.ticketStore.UpdateTicketClearStatus(&req); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			utils.BadRequest(w, th.logger, "update ticket clear status", errors.New("ticket not found"))
 			return
@@ -114,6 +123,20 @@ func (th *TicketHandler) HandleUpdateTicketClearStatus(w http.ResponseWriter, r 
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "ticket clear status updated successfully"})
 }
 
+// Get All Tickets Handler
+func (th *TicketHandler) HandleGetAllTickets(w http.ResponseWriter, r *http.Request) {
+	p := utils.ReadQueryParams(r)
+
+	tickets, err := th.ticketStore.GetAllTickets(p)
+	if err != nil {
+		utils.ServerError(w, th.logger, "get all tickets", err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "tickets fetched successfully", "tickets": tickets})
+}
+
+// Get Tickets By User ID Handler
 func (th *TicketHandler) HandleGetTicketsByUserID(w http.ResponseWriter, r *http.Request) {
 	userID, err := utils.ReadParamID(r)
 	if err != nil {
@@ -121,37 +144,13 @@ func (th *TicketHandler) HandleGetTicketsByUserID(w http.ResponseWriter, r *http
 		return
 	}
 
-	p := utils.ReadPaginationParams(r)
-	startDate := utils.ParseDateParam(r, "start_date")
-	endDate := utils.ParseDateParam(r, "end_date")
+	p := utils.ReadQueryParams(r)
 
-	tickets, err := th.ticketStore.GetTicketsByUserID(userID, p.Limit, p.Offset, startDate, endDate)
+	tickets, err := th.ticketStore.GetTicketsByUserID(userID, p)
 	if err != nil {
 		utils.ServerError(w, th.logger, "get tickets by user id", err)
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"tickets": tickets})
-}
-
-func (th *TicketHandler) HandleGetAllTickets(w http.ResponseWriter, r *http.Request) {
-	p := utils.ReadPaginationParams(r)
-	startDate := utils.ParseDateParam(r, "start_date")
-	endDate := utils.ParseDateParam(r, "end_date")
-
-	tickets, err := th.ticketStore.GetAllTickets(p.Limit, p.Offset, startDate, endDate)
-	if err != nil {
-		utils.ServerError(w, th.logger, "get all tickets", err)
-		return
-	}
-
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"tickets": tickets})
-}
-
-func readTicketID(r *http.Request) (int64, error) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		return 0, errors.New("invalid ticket id")
-	}
-	return id, nil
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "tickets fetched successfully", "tickets": tickets})
 }
