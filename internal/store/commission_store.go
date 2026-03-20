@@ -53,11 +53,11 @@ func (cs *PostgresCommisionStore) CreateCommision(c *models.CommisionModel) erro
 func (cs *PostgresCommisionStore) UpdateCommision(c *models.CommisionModel) error {
 	query := `
 	UPDATE commisions
-	SET total_commision              = COALESCE(NULLIF($1, 0), total_commision),
-	    admin_commision              = COALESCE(NULLIF($2, 0), admin_commision),
-	    master_distributor_commision = COALESCE(NULLIF($3, 0), master_distributor_commision),
-	    distributor_commision        = COALESCE(NULLIF($4, 0), distributor_commision),
-	    retailer_commision           = COALESCE(NULLIF($5, 0), retailer_commision),
+	SET total_commision              = $1,
+	    admin_commision              = $2,
+	    master_distributor_commision = $3,
+	    distributor_commision        = $4,
+	    retailer_commision           = $5,
 	    updated_at                   = CURRENT_TIMESTAMP
 	WHERE commision_id = $6;
 	`

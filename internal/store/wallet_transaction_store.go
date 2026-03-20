@@ -20,6 +20,7 @@ type WalletTransactionStore interface {
 	GetWalletTransactionsByUserID(userID string, limit, offset int, startDate, endDate *time.Time) ([]models.WalletTransactionModel, error)
 }
 
+// Create Wallet Transaction
 func (ws *PostgresWalletTransactionStore) CreateWalletTransaction(wt *models.WalletTransactionModel) error {
 	query := `
 	INSERT INTO wallet_transactions (
