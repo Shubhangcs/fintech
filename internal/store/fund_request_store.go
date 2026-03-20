@@ -10,11 +10,12 @@ import (
 )
 
 type PostgresFundRequestStore struct {
-	db *sql.DB
+	db          *sql.DB
+	walletStore WalletTransactionStore
 }
 
-func NewPostgresFundRequestStore(db *sql.DB) *PostgresFundRequestStore {
-	return &PostgresFundRequestStore{db: db}
+func NewPostgresFundRequestStore(db *sql.DB, walletStore WalletTransactionStore) *PostgresFundRequestStore {
+	return &PostgresFundRequestStore{db: db, walletStore: walletStore}
 }
 
 type FundRequestStore interface {
@@ -108,12 +109,12 @@ func (fs *PostgresFundRequestStore) ApproveFundRequest(fundRequestID int64) erro
 	}
 
 	// 2. Resolve wallet tables from ID prefixes
-	requesterWallet, err := walletInfoFromID(fr.RequesterID)
+	requestToWallet, err := walletInfoFromID(fr.RequestToID)
 	if err != nil {
 		return err
 	}
 
-	requestToWallet, err := walletInfoFromID(fr.RequestToID)
+	requesterWallet, err := walletInfoFromID(fr.RequesterID)
 	if err != nil {
 		return err
 	}
@@ -125,35 +126,25 @@ func (fs *PostgresFundRequestStore) ApproveFundRequest(fundRequestID int64) erro
 	}
 	defer tx.Rollback()
 
-	// 4. Get balances
-	requestToBefore, err := getBalanceTx(tx, requestToWallet.table, requestToWallet.idCol, requestToWallet.balanceCol, fr.RequestToID)
+	// 4. Atomically debit request_to — single UPDATE, checks balance in WHERE
+	requestToBefore, requestToAfter, err := debitTx(tx, requestToWallet.table, requestToWallet.idCol, requestToWallet.balanceCol, fr.RequestToID, fr.Amount)
 	if err != nil {
-		return errors.New("request_to user not found")
-	}
-
-	if requestToBefore < fr.Amount {
-		return errors.New("insufficient balance")
-	}
-
-	requesterBefore, err := getBalanceTx(tx, requesterWallet.table, requesterWallet.idCol, requesterWallet.balanceCol, fr.RequesterID)
-	if err != nil {
-		return errors.New("requester not found")
-	}
-
-	requestToAfter := requestToBefore - fr.Amount
-	requesterAfter := requesterBefore + fr.Amount
-
-	// 5. Deduct from request_to
-	if err = updateBalanceTx(tx, requestToWallet.table, requestToWallet.idCol, requestToWallet.balanceCol, fr.RequestToID, requestToAfter); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return checkExistsTx(tx, requestToWallet.table, requestToWallet.idCol, fr.RequestToID, "request_to user")
+		}
 		return err
 	}
 
-	// 6. Credit requester
-	if err = updateBalanceTx(tx, requesterWallet.table, requesterWallet.idCol, requesterWallet.balanceCol, fr.RequesterID, requesterAfter); err != nil {
+	// 5. Atomically credit requester
+	requesterBefore, requesterAfter, err := creditTx(tx, requesterWallet.table, requesterWallet.idCol, requesterWallet.balanceCol, fr.RequesterID, fr.Amount)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return errors.New("requester not found")
+		}
 		return err
 	}
 
-	// 7. Update fund request status
+	// 6. Update fund request status
 	if err = fs.updateFundRequestStatusTx(tx, fundRequestID, "ACCEPTED", nil); err != nil {
 		return err
 	}
@@ -161,15 +152,23 @@ func (fs *PostgresFundRequestStore) ApproveFundRequest(fundRequestID int64) erro
 	refID := fmt.Sprintf("%d", fundRequestID)
 	remarks := fmt.Sprintf("Fund request approved: %s", fr.Remarks)
 
-	// 8. Wallet tx for request_to (debit)
+	// 7. Wallet tx for request_to (debit)
 	debitAmt := fr.Amount
-	if err = insertWalletTransactionTx(tx, fr.RequestToID, refID, nil, &debitAmt, requestToBefore, requestToAfter, "FUND_REQUEST", remarks); err != nil {
+	if err = fs.walletStore.CreateWalletTransactionTx(tx, &models.WalletTransactionModel{
+		UserID: fr.RequestToID, ReferenceID: refID,
+		DebitAmount: &debitAmt, BeforeBalance: requestToBefore, AfterBalance: requestToAfter,
+		TransactionReason: "FUND_REQUEST", Remarks: remarks,
+	}); err != nil {
 		return err
 	}
 
-	// 9. Wallet tx for requester (credit)
+	// 8. Wallet tx for requester (credit)
 	creditAmt := fr.Amount
-	if err = insertWalletTransactionTx(tx, fr.RequesterID, refID, &creditAmt, nil, requesterBefore, requesterAfter, "FUND_REQUEST", remarks); err != nil {
+	if err = fs.walletStore.CreateWalletTransactionTx(tx, &models.WalletTransactionModel{
+		UserID: fr.RequesterID, ReferenceID: refID,
+		CreditAmount: &creditAmt, BeforeBalance: requesterBefore, AfterBalance: requesterAfter,
+		TransactionReason: "FUND_REQUEST", Remarks: remarks,
+	}); err != nil {
 		return err
 	}
 
@@ -204,25 +203,39 @@ func (fs *PostgresFundRequestStore) RejectFundRequest(fundRequestID int64, rejec
 
 // --- get functions ---
 
-// fundRequestSelectBase selects all columns including user names for both parties.
+// fundRequestSelectBase uses LATERAL subqueries instead of 8 LEFT JOINs.
 const fundRequestSelectBase = `
 SELECT
 	fr.fund_request_id, fr.requester_id, fr.request_to_id, fr.amount, fr.bank_name,
 	fr.request_date, fr.utr_number, fr.request_type, fr.request_status,
 	fr.remarks, fr.reject_remarks, fr.created_at, fr.updated_at,
-	COALESCE(qa.admin_name, qmd.master_distributor_name, qd.distributor_name, qr.retailer_name, '') AS requester_name,
-	COALESCE(qmd.master_distributor_business_name, qd.distributor_business_name, qr.retailer_business_name) AS requester_business_name,
-	COALESCE(pa.admin_name, pmd.master_distributor_name, pd.distributor_name, pr.retailer_name, '') AS request_to_name,
-	COALESCE(pmd.master_distributor_business_name, pd.distributor_business_name, pr.retailer_business_name) AS request_to_business_name
+	COALESCE(q.name, '')  AS requester_name,
+	q.business_name       AS requester_business_name,
+	COALESCE(p.name, '')  AS request_to_name,
+	p.business_name       AS request_to_business_name
 FROM fund_requests fr
-LEFT JOIN admins qa               ON fr.requester_id = qa.admin_id
-LEFT JOIN master_distributors qmd ON fr.requester_id = qmd.master_distributor_id
-LEFT JOIN distributors qd         ON fr.requester_id = qd.distributor_id
-LEFT JOIN retailers qr            ON fr.requester_id = qr.retailer_id
-LEFT JOIN admins pa               ON fr.request_to_id = pa.admin_id
-LEFT JOIN master_distributors pmd ON fr.request_to_id = pmd.master_distributor_id
-LEFT JOIN distributors pd         ON fr.request_to_id = pd.distributor_id
-LEFT JOIN retailers pr            ON fr.request_to_id = pr.retailer_id
+LEFT JOIN LATERAL (
+	SELECT name, business_name FROM (
+		SELECT admin_name AS name,            NULL::TEXT AS business_name              FROM admins            WHERE admin_id            = fr.requester_id
+		UNION ALL
+		SELECT master_distributor_name,       master_distributor_business_name         FROM master_distributors WHERE master_distributor_id = fr.requester_id
+		UNION ALL
+		SELECT distributor_name,              distributor_business_name                FROM distributors        WHERE distributor_id       = fr.requester_id
+		UNION ALL
+		SELECT retailer_name,                 retailer_business_name                   FROM retailers           WHERE retailer_id          = fr.requester_id
+	) u LIMIT 1
+) q ON TRUE
+LEFT JOIN LATERAL (
+	SELECT name, business_name FROM (
+		SELECT admin_name AS name,            NULL::TEXT AS business_name              FROM admins            WHERE admin_id            = fr.request_to_id
+		UNION ALL
+		SELECT master_distributor_name,       master_distributor_business_name         FROM master_distributors WHERE master_distributor_id = fr.request_to_id
+		UNION ALL
+		SELECT distributor_name,              distributor_business_name                FROM distributors        WHERE distributor_id       = fr.request_to_id
+		UNION ALL
+		SELECT retailer_name,                 retailer_business_name                   FROM retailers           WHERE retailer_id          = fr.request_to_id
+	) u LIMIT 1
+) p ON TRUE
 `
 
 func (fs *PostgresFundRequestStore) GetFundRequestsByRequesterID(requesterID string, limit, offset int, startDate, endDate *time.Time) ([]models.FundRequestModel, error) {
@@ -299,7 +312,7 @@ func scanFundRequests(db *sql.DB, query string, args ...any) ([]models.FundReque
 	}
 	defer rows.Close()
 
-	var requests []models.FundRequestModel
+	requests := []models.FundRequestModel{}
 	for rows.Next() {
 		var fr models.FundRequestModel
 		if err = rows.Scan(

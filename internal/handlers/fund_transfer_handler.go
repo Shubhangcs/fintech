@@ -87,11 +87,9 @@ func (fh *FundTransferHandler) HandleGetFundTransfersByTransfererID(w http.Respo
 		return
 	}
 
-	p := utils.ReadPaginationParams(r)
-	startDate := utils.ParseDateParam(r, "start_date")
-	endDate := utils.ParseDateParam(r, "end_date")
+	p := utils.ReadQueryParams(r)
 
-	transfers, err := fh.fundTransferStore.GetFundTransfersByTransfererID(id, p.Limit, p.Offset, startDate, endDate)
+	transfers, err := fh.fundTransferStore.GetFundTransfersByTransfererID(id, p)
 	if err != nil {
 		utils.ServerError(w, fh.logger, "get fund transfers by transferer id", err)
 		return
@@ -107,11 +105,9 @@ func (fh *FundTransferHandler) HandleGetFundTransfersByReceiverID(w http.Respons
 		return
 	}
 
-	p := utils.ReadPaginationParams(r)
-	startDate := utils.ParseDateParam(r, "start_date")
-	endDate := utils.ParseDateParam(r, "end_date")
+	p := utils.ReadQueryParams(r)
 
-	transfers, err := fh.fundTransferStore.GetFundTransfersByReceiverID(id, p.Limit, p.Offset, startDate, endDate)
+	transfers, err := fh.fundTransferStore.GetFundTransfersByReceiverID(id, p)
 	if err != nil {
 		utils.ServerError(w, fh.logger, "get fund transfers by receiver id", err)
 		return
@@ -121,11 +117,9 @@ func (fh *FundTransferHandler) HandleGetFundTransfersByReceiverID(w http.Respons
 }
 
 func (fh *FundTransferHandler) HandleGetAllFundTransfers(w http.ResponseWriter, r *http.Request) {
-	p := utils.ReadPaginationParams(r)
-	startDate := utils.ParseDateParam(r, "start_date")
-	endDate := utils.ParseDateParam(r, "end_date")
+	p := utils.ReadQueryParams(r)
 
-	transfers, err := fh.fundTransferStore.GetAllFundTransfers(p.Limit, p.Offset, startDate, endDate)
+	transfers, err := fh.fundTransferStore.GetAllFundTransfers(p)
 	if err != nil {
 		utils.ServerError(w, fh.logger, "get all fund transfers", err)
 		return

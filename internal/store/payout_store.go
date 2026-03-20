@@ -9,13 +9,12 @@ import (
 )
 
 type PostgresPayoutStore struct {
-	db *sql.DB
+	db          *sql.DB
+	walletStore WalletTransactionStore
 }
 
-func NewPostgresPayoutStore(db *sql.DB) *PostgresPayoutStore {
-	return &PostgresPayoutStore{
-		db: db,
-	}
+func NewPostgresPayoutStore(db *sql.DB, walletStore WalletTransactionStore) *PostgresPayoutStore {
+	return &PostgresPayoutStore{db: db, walletStore: walletStore}
 }
 
 type PayoutStore interface {
@@ -213,7 +212,11 @@ func (ps *PostgresPayoutStore) InitiatePayoutTransaction(req *models.CreatePayou
 	}
 
 	// 5. Wallet transaction for retailer debit
-	if err = insertWalletTransactionTx(tx, req.RetailerID, transactionID, nil, &totalDebit, balance, newBalance, "PAYOUT", ""); err != nil {
+	if err = ps.walletStore.CreateWalletTransactionTx(tx, &models.WalletTransactionModel{
+		UserID: req.RetailerID, ReferenceID: transactionID,
+		DebitAmount: &totalDebit, BeforeBalance: balance, AfterBalance: newBalance,
+		TransactionReason: "PAYOUT", Remarks: "",
+	}); err != nil {
 		return "", err
 	}
 
@@ -278,7 +281,11 @@ func (ps *PostgresPayoutStore) FinalizePayoutTransaction(transactionID, orderID,
 			return err
 		}
 		credit := entry.amount
-		if err = insertWalletTransactionTx(tx, entry.userID, transactionID, &credit, nil, before, after, "PAYOUT_COMMISSION", ""); err != nil {
+		if err = ps.walletStore.CreateWalletTransactionTx(tx, &models.WalletTransactionModel{
+			UserID: entry.userID, ReferenceID: transactionID,
+			CreditAmount: &credit, BeforeBalance: before, AfterBalance: after,
+			TransactionReason: "PAYOUT_COMMISSION", Remarks: "",
+		}); err != nil {
 			return err
 		}
 	}
@@ -335,7 +342,11 @@ func (ps *PostgresPayoutStore) FailPayoutTransaction(transactionID, orderID, ope
 	if err != nil {
 		return err
 	}
-	if err = insertWalletTransactionTx(tx, retailerID, transactionID, &totalRefund, nil, retailerBefore, retailerAfter, "PAYOUT_REFUND", ""); err != nil {
+	if err = ps.walletStore.CreateWalletTransactionTx(tx, &models.WalletTransactionModel{
+		UserID: retailerID, ReferenceID: transactionID,
+		CreditAmount: &totalRefund, BeforeBalance: retailerBefore, AfterBalance: retailerAfter,
+		TransactionReason: "PAYOUT_REFUND", Remarks: "",
+	}); err != nil {
 		return err
 	}
 
@@ -428,7 +439,11 @@ func (ps *PostgresPayoutStore) PayoutRefund(transactionID string) error {
 			return err
 		}
 		debit := entry.amount
-		if err = insertWalletTransactionTx(tx, entry.userID, transactionID, nil, &debit, before, after, "PAYOUT_COMMISSION_REVERSAL", ""); err != nil {
+		if err = ps.walletStore.CreateWalletTransactionTx(tx, &models.WalletTransactionModel{
+			UserID: entry.userID, ReferenceID: transactionID,
+			DebitAmount: &debit, BeforeBalance: before, AfterBalance: after,
+			TransactionReason: "PAYOUT_COMMISSION_REVERSAL", Remarks: "",
+		}); err != nil {
 			return err
 		}
 	}
@@ -448,7 +463,11 @@ func (ps *PostgresPayoutStore) PayoutRefund(transactionID string) error {
 	if err != nil {
 		return err
 	}
-	if err = insertWalletTransactionTx(tx, retailerID, transactionID, &totalRefund, nil, retailerBefore, retailerAfter, "PAYOUT_REFUND", ""); err != nil {
+	if err = ps.walletStore.CreateWalletTransactionTx(tx, &models.WalletTransactionModel{
+		UserID: retailerID, ReferenceID: transactionID,
+		CreditAmount: &totalRefund, BeforeBalance: retailerBefore, AfterBalance: retailerAfter,
+		TransactionReason: "PAYOUT_REFUND", Remarks: "",
+	}); err != nil {
 		return err
 	}
 

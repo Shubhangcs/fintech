@@ -17,6 +17,7 @@ func NewPostgresWalletTransactionStore(db *sql.DB) *PostgresWalletTransactionSto
 
 type WalletTransactionStore interface {
 	CreateWalletTransaction(wt *models.WalletTransactionModel) error
+	CreateWalletTransactionTx(tx *sql.Tx, wt *models.WalletTransactionModel) error
 	GetWalletTransactionsByUserID(userID string, p utils.QueryParams) ([]models.WalletTransactionModel, error)
 }
 
@@ -52,6 +53,20 @@ func (ws *PostgresWalletTransactionStore) CreateWalletTransaction(wt *models.Wal
 		&wt.WalletTransactionID,
 		&wt.CreatedAT,
 	)
+}
+
+func (ws *PostgresWalletTransactionStore) CreateWalletTransactionTx(tx *sql.Tx, wt *models.WalletTransactionModel) error {
+	const query = `
+	INSERT INTO wallet_transactions (
+		user_id, reference_id, credit_amount, debit_amount,
+		before_balance, after_balance, transaction_reason, remarks
+	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	RETURNING wallet_transaction_id, created_at;
+	`
+	return tx.QueryRow(query,
+		wt.UserID, wt.ReferenceID, wt.CreditAmount, wt.DebitAmount,
+		wt.BeforeBalance, wt.AfterBalance, wt.TransactionReason, wt.Remarks,
+	).Scan(&wt.WalletTransactionID, &wt.CreatedAT)
 }
 
 // Get Wallet Transactions By User ID

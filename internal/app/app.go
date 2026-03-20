@@ -48,14 +48,14 @@ func NewApplication() (*Application, error) {
 	distributorStore := store.NewPostgresDistributorStore(pgdb)
 	retailerStore := store.NewPostgresRetailerStore(pgdb)
 	walletTransactionStore := store.NewPostgresWalletTransactionStore(pgdb)
-	fundTransferStore := store.NewPostgresFundTransferStore(pgdb)
-	fundRequestStore := store.NewPostgresFundRequestStore(pgdb)
+	fundTransferStore := store.NewPostgresFundTransferStore(pgdb, walletTransactionStore)
+	fundRequestStore := store.NewPostgresFundRequestStore(pgdb, walletTransactionStore)
 	bankStore := store.NewPostgresBankStore(pgdb)
 	commisionStore := store.NewPostgresCommisionStore(pgdb)
 	transactionLimitStore := store.NewPostgresTransactionLimitStore(pgdb)
 	ticketStore := store.NewPostgresTicketStore(pgdb)
 	beneficiaryStore := store.NewPostgresBeneficiaryStore(pgdb)
-	payoutStore := store.NewPostgresPayoutStore(pgdb)
+	payoutStore := store.NewPostgresPayoutStore(pgdb, walletTransactionStore)
 
 	// Handlers
 	adminHandler := handlers.NewAdminHandler(adminStore, walletTransactionStore, logger)
