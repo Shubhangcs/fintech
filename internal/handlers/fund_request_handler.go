@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/levionstudio/fintech/internal/models"
 	"github.com/levionstudio/fintech/internal/store"
@@ -28,27 +29,27 @@ func NewFundRequestHandler(fundRequestStore store.FundRequestStore, logger *slog
 // --- create handlers ---
 
 func (fh *FundRequestHandler) HandleMDRequestToAdmin(w http.ResponseWriter, r *http.Request) {
-	fh.handleCreate(w, r, "md request to admin", "M", "A", fh.fundRequestStore.MDRequestToAdmin)
+	fh.handleCreate(w, r, "md request to admin", "M", "A")
 }
 
 func (fh *FundRequestHandler) HandleDistributorRequestToAdmin(w http.ResponseWriter, r *http.Request) {
-	fh.handleCreate(w, r, "distributor request to admin", "D", "A", fh.fundRequestStore.DistributorRequestToAdmin)
+	fh.handleCreate(w, r, "distributor request to admin", "D", "A")
 }
 
 func (fh *FundRequestHandler) HandleDistributorRequestToMD(w http.ResponseWriter, r *http.Request) {
-	fh.handleCreate(w, r, "distributor request to md", "D", "M", fh.fundRequestStore.DistributorRequestToMD)
+	fh.handleCreate(w, r, "distributor request to md", "D", "M")
 }
 
 func (fh *FundRequestHandler) HandleRetailerRequestToAdmin(w http.ResponseWriter, r *http.Request) {
-	fh.handleCreate(w, r, "retailer request to admin", "R", "A", fh.fundRequestStore.RetailerRequestToAdmin)
+	fh.handleCreate(w, r, "retailer request to admin", "R", "A")
 }
 
 func (fh *FundRequestHandler) HandleRetailerRequestToMD(w http.ResponseWriter, r *http.Request) {
-	fh.handleCreate(w, r, "retailer request to md", "R", "M", fh.fundRequestStore.RetailerRequestToMD)
+	fh.handleCreate(w, r, "retailer request to md", "R", "M")
 }
 
 func (fh *FundRequestHandler) HandleRetailerRequestToDistributor(w http.ResponseWriter, r *http.Request) {
-	fh.handleCreate(w, r, "retailer request to distributor", "R", "D", fh.fundRequestStore.RetailerRequestToDistributor)
+	fh.handleCreate(w, r, "retailer request to distributor", "R", "D")
 }
 
 // --- approve / reject ---
@@ -86,7 +87,6 @@ func (fh *FundRequestHandler) HandleRejectFundRequest(w http.ResponseWriter, r *
 		utils.BadRequest(w, fh.logger, "reject fund request", err)
 		return
 	}
-
 	if body.RejectRemarks == "" {
 		utils.BadRequest(w, fh.logger, "reject fund request", errors.New("reject_remarks is required"))
 		return
@@ -113,9 +113,7 @@ func (fh *FundRequestHandler) HandleGetFundRequestsByRequesterID(w http.Response
 		return
 	}
 
-	p := utils.ReadQueryParams(r)
-
-	requests, err := fh.fundRequestStore.GetFundRequestsByRequesterID(id, p.Limit, p.Offset, p.StartDate, p.EndDate)
+	requests, err := fh.fundRequestStore.GetFundRequestsByRequesterID(id, utils.ReadQueryParams(r))
 	if err != nil {
 		utils.ServerError(w, fh.logger, "get fund requests by requester id", err)
 		return
@@ -131,9 +129,7 @@ func (fh *FundRequestHandler) HandleGetFundRequestsByRequestToID(w http.Response
 		return
 	}
 
-	p := utils.ReadQueryParams(r)
-
-	requests, err := fh.fundRequestStore.GetFundRequestsByRequestToID(id, p.Limit, p.Offset, p.StartDate, p.EndDate)
+	requests, err := fh.fundRequestStore.GetFundRequestsByRequestToID(id, utils.ReadQueryParams(r))
 	if err != nil {
 		utils.ServerError(w, fh.logger, "get fund requests by request_to id", err)
 		return
@@ -143,9 +139,7 @@ func (fh *FundRequestHandler) HandleGetFundRequestsByRequestToID(w http.Response
 }
 
 func (fh *FundRequestHandler) HandleGetAllFundRequests(w http.ResponseWriter, r *http.Request) {
-	p := utils.ReadQueryParams(r)
-
-	requests, err := fh.fundRequestStore.GetAllFundRequests(p.Limit, p.Offset, p.StartDate, p.EndDate)
+	requests, err := fh.fundRequestStore.GetAllFundRequests(utils.ReadQueryParams(r))
 	if err != nil {
 		utils.ServerError(w, fh.logger, "get all fund requests", err)
 		return
@@ -160,7 +154,6 @@ func (fh *FundRequestHandler) handleCreate(
 	w http.ResponseWriter,
 	r *http.Request,
 	op, requesterPrefix, requestToPrefix string,
-	createFn func(*models.FundRequestModel) error,
 ) {
 	var req models.FundRequestModel
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -187,7 +180,7 @@ func (fh *FundRequestHandler) handleCreate(
 		req.Remarks = fmt.Sprintf("Fund request from %s to %s", req.RequesterID, req.RequestToID)
 	}
 
-	if err := createFn(&req); err != nil {
+	if err := fh.fundRequestStore.CreateFundRequest(&req); err != nil {
 		utils.ServerError(w, fh.logger, op, err)
 		return
 	}
@@ -200,12 +193,10 @@ func readFundRequestID(r *http.Request) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
 		return 0, errors.New("invalid fund request id")
 	}
-
 	return id, nil
 }
 
@@ -231,5 +222,5 @@ func isFundRequestClientErr(err error) bool {
 		msg == "insufficient balance" ||
 		msg == "requester not found" ||
 		msg == "request_to user not found" ||
-		len(msg) > 24 && msg[:24] == "fund request is already "
+		strings.HasPrefix(msg, "fund request is already ")
 }

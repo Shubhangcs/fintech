@@ -4,9 +4,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/levionstudio/fintech/internal/models"
+	"github.com/levionstudio/fintech/internal/utils"
 )
 
 type PostgresFundRequestStore struct {
@@ -19,91 +19,53 @@ func NewPostgresFundRequestStore(db *sql.DB, walletStore WalletTransactionStore)
 }
 
 type FundRequestStore interface {
-	MDRequestToAdmin(fr *models.FundRequestModel) error
-	DistributorRequestToAdmin(fr *models.FundRequestModel) error
-	DistributorRequestToMD(fr *models.FundRequestModel) error
-	RetailerRequestToAdmin(fr *models.FundRequestModel) error
-	RetailerRequestToMD(fr *models.FundRequestModel) error
-	RetailerRequestToDistributor(fr *models.FundRequestModel) error
+	CreateFundRequest(fr *models.FundRequestModel) error
 	ApproveFundRequest(fundRequestID int64) error
 	RejectFundRequest(fundRequestID int64, rejectRemarks string) error
-	GetFundRequestsByRequesterID(requesterID string, limit, offset int, startDate, endDate *time.Time) ([]models.FundRequestModel, error)
-	GetFundRequestsByRequestToID(requestToID string, limit, offset int, startDate, endDate *time.Time) ([]models.FundRequestModel, error)
-	GetAllFundRequests(limit, offset int, startDate, endDate *time.Time) ([]models.FundRequestModel, error)
+	GetFundRequestsByRequesterID(requesterID string, p utils.QueryParams) ([]models.FundRequestModel, error)
+	GetFundRequestsByRequestToID(requestToID string, p utils.QueryParams) ([]models.FundRequestModel, error)
+	GetAllFundRequests(p utils.QueryParams) ([]models.FundRequestModel, error)
 }
 
-// --- create implementations ---
-
-func (fs *PostgresFundRequestStore) MDRequestToAdmin(fr *models.FundRequestModel) error {
-	return fs.createRequest(fr)
-}
-
-func (fs *PostgresFundRequestStore) DistributorRequestToAdmin(fr *models.FundRequestModel) error {
-	return fs.createRequest(fr)
-}
-
-func (fs *PostgresFundRequestStore) DistributorRequestToMD(fr *models.FundRequestModel) error {
-	return fs.createRequest(fr)
-}
-
-func (fs *PostgresFundRequestStore) RetailerRequestToAdmin(fr *models.FundRequestModel) error {
-	return fs.createRequest(fr)
-}
-
-func (fs *PostgresFundRequestStore) RetailerRequestToMD(fr *models.FundRequestModel) error {
-	return fs.createRequest(fr)
-}
-
-func (fs *PostgresFundRequestStore) RetailerRequestToDistributor(fr *models.FundRequestModel) error {
-	return fs.createRequest(fr)
-}
-
-func (fs *PostgresFundRequestStore) createRequest(fr *models.FundRequestModel) error {
-	query := `
+// CreateFundRequest inserts a new PENDING fund request.
+func (fs *PostgresFundRequestStore) CreateFundRequest(fr *models.FundRequestModel) error {
+	const q = `
 	INSERT INTO fund_requests (
-		requester_id,
-		request_to_id,
-		amount,
-		bank_name,
-		request_date,
-		utr_number,
-		request_type,
-		request_status,
-		remarks
+		requester_id, request_to_id, amount, bank_name,
+		request_date, utr_number, request_type, request_status, remarks
 	) VALUES ($1, $2, $3, $4, $5, $6, $7, 'PENDING', $8)
 	RETURNING fund_request_id, request_status, created_at, updated_at;
 	`
-
-	return fs.db.QueryRow(
-		query,
-		fr.RequesterID,
-		fr.RequestToID,
-		fr.Amount,
-		fr.BankName,
-		fr.RequestDate,
-		fr.UTRNumber,
-		fr.RequestType,
-		fr.Remarks,
-	).Scan(
-		&fr.FundRequestID,
-		&fr.RequestStatus,
-		&fr.CreatedAT,
-		&fr.UpdatedAT,
-	)
+	return fs.db.QueryRow(q,
+		fr.RequesterID, fr.RequestToID, fr.Amount, fr.BankName,
+		fr.RequestDate, fr.UTRNumber, fr.RequestType, fr.Remarks,
+	).Scan(&fr.FundRequestID, &fr.RequestStatus, &fr.CreatedAT, &fr.UpdatedAT)
 }
 
-// --- approve / reject ---
-
+// ApproveFundRequest transfers funds from request_to → requester and marks the request ACCEPTED.
+// Uses SELECT FOR UPDATE inside the transaction to prevent concurrent double-approvals.
 func (fs *PostgresFundRequestStore) ApproveFundRequest(fundRequestID int64) error {
-	// 1. Fetch the fund request
-	fr, err := fs.getFundRequestByID(fundRequestID)
+	tx, err := fs.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// 1. Lock the fund request row — prevents concurrent approvals of the same request
+	var fr models.FundRequestModel
+	err = tx.QueryRow(`
+		SELECT fund_request_id, requester_id, request_to_id, amount, request_status, remarks
+		FROM fund_requests WHERE fund_request_id = $1 FOR UPDATE
+	`, fundRequestID).Scan(
+		&fr.FundRequestID, &fr.RequesterID, &fr.RequestToID,
+		&fr.Amount, &fr.RequestStatus, &fr.Remarks,
+	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return errors.New("fund request not found")
 		}
 		return err
 	}
-
 	if fr.RequestStatus != "PENDING" {
 		return fmt.Errorf("fund request is already %s", fr.RequestStatus)
 	}
@@ -113,20 +75,12 @@ func (fs *PostgresFundRequestStore) ApproveFundRequest(fundRequestID int64) erro
 	if err != nil {
 		return err
 	}
-
 	requesterWallet, err := walletInfoFromID(fr.RequesterID)
 	if err != nil {
 		return err
 	}
 
-	// 3. Begin transaction
-	tx, err := fs.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	// 4. Atomically debit request_to — single UPDATE, checks balance in WHERE
+	// 3. Atomically debit request_to — fails if not found or balance insufficient
 	requestToBefore, requestToAfter, err := debitTx(tx, requestToWallet.table, requestToWallet.idCol, requestToWallet.balanceCol, fr.RequestToID, fr.Amount)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -135,7 +89,7 @@ func (fs *PostgresFundRequestStore) ApproveFundRequest(fundRequestID int64) erro
 		return err
 	}
 
-	// 5. Atomically credit requester
+	// 4. Atomically credit requester
 	requesterBefore, requesterAfter, err := creditTx(tx, requesterWallet.table, requesterWallet.idCol, requesterWallet.balanceCol, fr.RequesterID, fr.Amount)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -144,15 +98,22 @@ func (fs *PostgresFundRequestStore) ApproveFundRequest(fundRequestID int64) erro
 		return err
 	}
 
-	// 6. Update fund request status
-	if err = fs.updateFundRequestStatusTx(tx, fundRequestID, "ACCEPTED", nil); err != nil {
+	// 5. Mark request as ACCEPTED (AND status = 'PENDING' is a safety guard)
+	res, err := tx.Exec(`
+		UPDATE fund_requests SET request_status = 'ACCEPTED', updated_at = CURRENT_TIMESTAMP
+		WHERE fund_request_id = $1 AND request_status = 'PENDING'
+	`, fundRequestID)
+	if err != nil {
 		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return errors.New("fund request not found or already processed")
 	}
 
 	refID := fmt.Sprintf("%d", fundRequestID)
 	remarks := fmt.Sprintf("Fund request approved: %s", fr.Remarks)
 
-	// 7. Wallet tx for request_to (debit)
+	// 6. Wallet tx for request_to (debit)
 	debitAmt := fr.Amount
 	if err = fs.walletStore.CreateWalletTransactionTx(tx, &models.WalletTransactionModel{
 		UserID: fr.RequestToID, ReferenceID: refID,
@@ -162,7 +123,7 @@ func (fs *PostgresFundRequestStore) ApproveFundRequest(fundRequestID int64) erro
 		return err
 	}
 
-	// 8. Wallet tx for requester (credit)
+	// 7. Wallet tx for requester (credit)
 	creditAmt := fr.Amount
 	if err = fs.walletStore.CreateWalletTransactionTx(tx, &models.WalletTransactionModel{
 		UserID: fr.RequesterID, ReferenceID: refID,
@@ -175,33 +136,25 @@ func (fs *PostgresFundRequestStore) ApproveFundRequest(fundRequestID int64) erro
 	return tx.Commit()
 }
 
+// Reject Fund Request
 func (fs *PostgresFundRequestStore) RejectFundRequest(fundRequestID int64, rejectRemarks string) error {
-	query := `
-	UPDATE fund_requests
-	SET request_status = 'REJECTED',
-		reject_remarks = $1,
-		updated_at     = CURRENT_TIMESTAMP
-	WHERE fund_request_id = $2
-	AND request_status    = 'PENDING';
-	`
-
-	res, err := fs.db.Exec(query, rejectRemarks, fundRequestID)
+	res, err := fs.db.Exec(`
+		UPDATE fund_requests
+		SET request_status = 'REJECTED', reject_remarks = $1, updated_at = CURRENT_TIMESTAMP
+		WHERE fund_request_id = $2 AND request_status = 'PENDING'
+	`, rejectRemarks, fundRequestID)
 	if err != nil {
 		return err
 	}
-
-	rowsAffected, err := res.RowsAffected()
+	n, err := res.RowsAffected()
 	if err != nil {
 		return err
 	}
-	if rowsAffected == 0 {
+	if n == 0 {
 		return errors.New("fund request not found or already processed")
 	}
-
 	return nil
 }
-
-// --- get functions ---
 
 // fundRequestSelectBase uses LATERAL subqueries instead of 8 LEFT JOINs.
 const fundRequestSelectBase = `
@@ -238,71 +191,39 @@ LEFT JOIN LATERAL (
 ) p ON TRUE
 `
 
-func (fs *PostgresFundRequestStore) GetFundRequestsByRequesterID(requesterID string, limit, offset int, startDate, endDate *time.Time) ([]models.FundRequestModel, error) {
-	query := fundRequestSelectBase + `
+// Get Fund Requests By Requester ID
+func (fs *PostgresFundRequestStore) GetFundRequestsByRequesterID(requesterID string, p utils.QueryParams) ([]models.FundRequestModel, error) {
+	q := fundRequestSelectBase + `
 	WHERE fr.requester_id = $1
 	AND fr.created_at >= COALESCE($4, '-infinity'::TIMESTAMPTZ)
 	AND fr.created_at <= COALESCE($5, 'infinity'::TIMESTAMPTZ)
 	ORDER BY fr.created_at DESC
 	LIMIT $2 OFFSET $3;
 	`
-	return scanFundRequests(fs.db, query, requesterID, limit, offset, startDate, endDate)
+	return scanFundRequests(fs.db, q, requesterID, p.Limit, p.Offset, p.StartDate, p.EndDate)
 }
 
-func (fs *PostgresFundRequestStore) GetFundRequestsByRequestToID(requestToID string, limit, offset int, startDate, endDate *time.Time) ([]models.FundRequestModel, error) {
-	query := fundRequestSelectBase + `
+// Get Fund Requests By Request To ID
+func (fs *PostgresFundRequestStore) GetFundRequestsByRequestToID(requestToID string, p utils.QueryParams) ([]models.FundRequestModel, error) {
+	q := fundRequestSelectBase + `
 	WHERE fr.request_to_id = $1
 	AND fr.created_at >= COALESCE($4, '-infinity'::TIMESTAMPTZ)
 	AND fr.created_at <= COALESCE($5, 'infinity'::TIMESTAMPTZ)
 	ORDER BY fr.created_at DESC
 	LIMIT $2 OFFSET $3;
 	`
-	return scanFundRequests(fs.db, query, requestToID, limit, offset, startDate, endDate)
+	return scanFundRequests(fs.db, q, requestToID, p.Limit, p.Offset, p.StartDate, p.EndDate)
 }
 
-func (fs *PostgresFundRequestStore) GetAllFundRequests(limit, offset int, startDate, endDate *time.Time) ([]models.FundRequestModel, error) {
-	query := fundRequestSelectBase + `
+// Get All Fund Requests
+func (fs *PostgresFundRequestStore) GetAllFundRequests(p utils.QueryParams) ([]models.FundRequestModel, error) {
+	q := fundRequestSelectBase + `
 	WHERE fr.created_at >= COALESCE($3, '-infinity'::TIMESTAMPTZ)
 	AND fr.created_at <= COALESCE($4, 'infinity'::TIMESTAMPTZ)
 	ORDER BY fr.created_at DESC
 	LIMIT $1 OFFSET $2;
 	`
-	return scanFundRequests(fs.db, query, limit, offset, startDate, endDate)
-}
-
-// --- helpers ---
-
-func (fs *PostgresFundRequestStore) getFundRequestByID(id int64) (*models.FundRequestModel, error) {
-	query := `
-	SELECT
-		fund_request_id, requester_id, request_to_id, amount, bank_name,
-		request_date, utr_number, request_type, request_status,
-		remarks, reject_remarks, created_at, updated_at
-	FROM fund_requests
-	WHERE fund_request_id = $1;
-	`
-
-	var fr models.FundRequestModel
-	err := fs.db.QueryRow(query, id).Scan(
-		&fr.FundRequestID, &fr.RequesterID, &fr.RequestToID, &fr.Amount, &fr.BankName,
-		&fr.RequestDate, &fr.UTRNumber, &fr.RequestType, &fr.RequestStatus,
-		&fr.Remarks, &fr.RejectRemarks, &fr.CreatedAT, &fr.UpdatedAT,
-	)
-
-	return &fr, err
-}
-
-func (fs *PostgresFundRequestStore) updateFundRequestStatusTx(tx *sql.Tx, id int64, status string, rejectRemarks *string) error {
-	query := `
-	UPDATE fund_requests
-	SET request_status = $1,
-		reject_remarks = $2,
-		updated_at     = CURRENT_TIMESTAMP
-	WHERE fund_request_id = $3;
-	`
-
-	_, err := tx.Exec(query, status, rejectRemarks, id)
-	return err
+	return scanFundRequests(fs.db, q, p.Limit, p.Offset, p.StartDate, p.EndDate)
 }
 
 func scanFundRequests(db *sql.DB, query string, args ...any) ([]models.FundRequestModel, error) {
@@ -326,6 +247,5 @@ func scanFundRequests(db *sql.DB, query string, args ...any) ([]models.FundReque
 		}
 		requests = append(requests, fr)
 	}
-
 	return requests, rows.Err()
 }

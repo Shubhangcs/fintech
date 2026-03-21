@@ -61,3 +61,35 @@ func scanDropdown(db *sql.DB, query string, args ...any) ([]models.DropdownItem,
 
 	return items, rows.Err()
 }
+
+func debitTx(tx *sql.Tx, table, idCol, balanceCol, id string, amount float64) (before, after float64, err error) {
+	q := fmt.Sprintf(
+		`UPDATE %s SET %s = %s - $1, updated_at = CURRENT_TIMESTAMP
+		 WHERE %s = $2 AND %s >= $1
+		 RETURNING %s + $1, %s;`,
+		table, balanceCol, balanceCol, idCol, balanceCol, balanceCol, balanceCol,
+	)
+	err = tx.QueryRow(q, amount, id).Scan(&before, &after)
+	return
+}
+
+func creditTx(tx *sql.Tx, table, idCol, balanceCol, id string, amount float64) (before, after float64, err error) {
+	q := fmt.Sprintf(
+		`UPDATE %s SET %s = %s + $1, updated_at = CURRENT_TIMESTAMP
+		 WHERE %s = $2
+		 RETURNING %s - $1, %s;`,
+		table, balanceCol, balanceCol, idCol, balanceCol, balanceCol,
+	)
+	err = tx.QueryRow(q, amount, id).Scan(&before, &after)
+	return
+}
+
+func checkExistsTx(tx *sql.Tx, table, idCol, id, role string) error {
+	q := fmt.Sprintf(`SELECT EXISTS(SELECT 1 FROM %s WHERE %s = $1);`, table, idCol)
+	var exists bool
+	_ = tx.QueryRow(q, id).Scan(&exists)
+	if !exists {
+		return fmt.Errorf("%s not found", role)
+	}
+	return errors.New("insufficient balance")
+}
