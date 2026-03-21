@@ -15,7 +15,10 @@ type PostgresFundTransferStore struct {
 }
 
 func NewPostgresFundTransferStore(db *sql.DB, walletStore WalletTransactionStore) *PostgresFundTransferStore {
-	return &PostgresFundTransferStore{db: db, walletStore: walletStore}
+	return &PostgresFundTransferStore{
+		db:          db,
+		walletStore: walletStore,
+	}
 }
 
 type FundTransferStore interface {
@@ -30,8 +33,7 @@ type FundTransferStore interface {
 	GetAllFundTransfers(p utils.QueryParams) ([]models.FundTransferModel, error)
 }
 
-// --- transfer implementations ---
-
+// Admin To MD Fund Transfer
 func (fs *PostgresFundTransferStore) AdminToMD(ft *models.FundTransferModel) error {
 	return fs.transfer(ft,
 		"admins", "admin_id", "admin_wallet_balance",
@@ -39,6 +41,7 @@ func (fs *PostgresFundTransferStore) AdminToMD(ft *models.FundTransferModel) err
 	)
 }
 
+// Admin To Distributor Fund Transfer
 func (fs *PostgresFundTransferStore) AdminToDistributor(ft *models.FundTransferModel) error {
 	return fs.transfer(ft,
 		"admins", "admin_id", "admin_wallet_balance",
@@ -46,6 +49,7 @@ func (fs *PostgresFundTransferStore) AdminToDistributor(ft *models.FundTransferM
 	)
 }
 
+// Admin To Retailer Fund Transfer
 func (fs *PostgresFundTransferStore) AdminToRetailer(ft *models.FundTransferModel) error {
 	return fs.transfer(ft,
 		"admins", "admin_id", "admin_wallet_balance",
@@ -53,6 +57,7 @@ func (fs *PostgresFundTransferStore) AdminToRetailer(ft *models.FundTransferMode
 	)
 }
 
+// MD To Distributor Fund Transfer
 func (fs *PostgresFundTransferStore) MDToDistributor(ft *models.FundTransferModel) error {
 	return fs.transfer(ft,
 		"master_distributors", "master_distributor_id", "master_distributor_wallet_balance",
@@ -60,6 +65,7 @@ func (fs *PostgresFundTransferStore) MDToDistributor(ft *models.FundTransferMode
 	)
 }
 
+// MD To Retailer Fund Transfer
 func (fs *PostgresFundTransferStore) MDToRetailer(ft *models.FundTransferModel) error {
 	return fs.transfer(ft,
 		"master_distributors", "master_distributor_id", "master_distributor_wallet_balance",
@@ -67,14 +73,13 @@ func (fs *PostgresFundTransferStore) MDToRetailer(ft *models.FundTransferModel) 
 	)
 }
 
+// Distributor To Retailer Fund Transfer
 func (fs *PostgresFundTransferStore) DistributorToRetailer(ft *models.FundTransferModel) error {
 	return fs.transfer(ft,
 		"distributors", "distributor_id", "distributor_wallet_balance",
 		"retailers", "retailer_id", "retailer_wallet_balance",
 	)
 }
-
-// --- core transfer logic ---
 
 func (fs *PostgresFundTransferStore) transfer(
 	ft *models.FundTransferModel,
@@ -138,9 +143,6 @@ func (fs *PostgresFundTransferStore) transfer(
 	return tx.Commit()
 }
 
-// debitTx atomically deducts amount from the sender.
-// Returns (beforeBalance, afterBalance). Returns sql.ErrNoRows if sender
-// doesn't exist OR has insufficient balance (use checkExistsTx to distinguish).
 func debitTx(tx *sql.Tx, table, idCol, balanceCol, id string, amount float64) (before, after float64, err error) {
 	q := fmt.Sprintf(
 		`UPDATE %s SET %s = %s - $1, updated_at = CURRENT_TIMESTAMP
@@ -152,8 +154,6 @@ func debitTx(tx *sql.Tx, table, idCol, balanceCol, id string, amount float64) (b
 	return
 }
 
-// creditTx atomically adds amount to the receiver.
-// Returns (beforeBalance, afterBalance). Returns sql.ErrNoRows if receiver doesn't exist.
 func creditTx(tx *sql.Tx, table, idCol, balanceCol, id string, amount float64) (before, after float64, err error) {
 	q := fmt.Sprintf(
 		`UPDATE %s SET %s = %s + $1, updated_at = CURRENT_TIMESTAMP
@@ -165,8 +165,6 @@ func creditTx(tx *sql.Tx, table, idCol, balanceCol, id string, amount float64) (
 	return
 }
 
-// checkExistsTx distinguishes "not found" from "insufficient balance"
-// after a failed debit (both produce sql.ErrNoRows from debitTx).
 func checkExistsTx(tx *sql.Tx, table, idCol, id, role string) error {
 	q := fmt.Sprintf(`SELECT EXISTS(SELECT 1 FROM %s WHERE %s = $1);`, table, idCol)
 	var exists bool
@@ -188,12 +186,6 @@ func insertFundTransferTx(tx *sql.Tx, ft *models.FundTransferModel) error {
 	).Scan(&ft.FundTransferID, &ft.CreatedAT)
 }
 
-// --- get queries ---
-
-// fundTransferSelectBase uses two LATERAL subqueries instead of 8 LEFT JOINs.
-// Each LATERAL does a 4-table UNION ALL and stops at the first match (LIMIT 1),
-// hitting only PK indexes. The wallet_transactions join is removed — before/after
-// balance is set at transfer time and returned in the create response.
 const fundTransferSelectBase = `
 SELECT
 	ft.fund_transfer_id,
@@ -232,6 +224,7 @@ LEFT JOIN LATERAL (
 ) rec ON TRUE
 `
 
+// Get Fund Transfer By Transferer ID
 func (fs *PostgresFundTransferStore) GetFundTransfersByTransfererID(transfererID string, p utils.QueryParams) ([]models.FundTransferModel, error) {
 	q := fundTransferSelectBase + `
 	WHERE ft.fund_transferer_id = $1
@@ -243,6 +236,7 @@ func (fs *PostgresFundTransferStore) GetFundTransfersByTransfererID(transfererID
 	return scanFundTransfers(fs.db, q, transfererID, p.Limit, p.Offset, p.StartDate, p.EndDate)
 }
 
+// Get Fund Transfer By Receiver ID
 func (fs *PostgresFundTransferStore) GetFundTransfersByReceiverID(receiverID string, p utils.QueryParams) ([]models.FundTransferModel, error) {
 	q := fundTransferSelectBase + `
 	WHERE ft.fund_receiver_id = $1
@@ -254,6 +248,7 @@ func (fs *PostgresFundTransferStore) GetFundTransfersByReceiverID(receiverID str
 	return scanFundTransfers(fs.db, q, receiverID, p.Limit, p.Offset, p.StartDate, p.EndDate)
 }
 
+// Get All Fund Transfers
 func (fs *PostgresFundTransferStore) GetAllFundTransfers(p utils.QueryParams) ([]models.FundTransferModel, error) {
 	q := fundTransferSelectBase + `
 	WHERE ft.created_at >= COALESCE($3, '-infinity'::TIMESTAMPTZ)
