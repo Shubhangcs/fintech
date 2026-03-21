@@ -25,8 +25,9 @@ type Application struct {
 	CommisionHandler         *handlers.CommisionHandler
 	TransactionLimitHandler  *handlers.TransactionLimitHandler
 	TicketHandler            *handlers.TicketHandler
-	BeneficiaryHandler       *handlers.BeneficiaryHandler
-	PayoutHandler            *handlers.PayoutHandler
+	BeneficiaryHandler            *handlers.BeneficiaryHandler
+	PayoutHandler                 *handlers.PayoutHandler
+	RevertTransactionHandler      *handlers.RevertTransactionHandler
 }
 
 func NewApplication() (*Application, error) {
@@ -56,6 +57,7 @@ func NewApplication() (*Application, error) {
 	ticketStore := store.NewPostgresTicketStore(pgdb)
 	beneficiaryStore := store.NewPostgresBeneficiaryStore(pgdb)
 	payoutStore := store.NewPostgresPayoutStore(pgdb, walletTransactionStore)
+	revertTransactionStore := store.NewPostgresRevertTransactionStore(pgdb, walletTransactionStore)
 
 	// Handlers
 	adminHandler := handlers.NewAdminHandler(adminStore, walletTransactionStore, logger)
@@ -71,6 +73,7 @@ func NewApplication() (*Application, error) {
 	ticketHandler := handlers.NewTicketHandler(ticketStore, logger)
 	beneficiaryHandler := handlers.NewBeneficiaryHandler(beneficiaryStore, logger)
 	payoutHandler := handlers.NewPayoutHandler(payoutStore, logger)
+	revertTransactionHandler := handlers.NewRevertTransactionHandler(revertTransactionStore, logger)
 
 	return &Application{
 		Logger:                   logger,
@@ -86,7 +89,8 @@ func NewApplication() (*Application, error) {
 		CommisionHandler:         commisionHandler,
 		TransactionLimitHandler:  transactionLimitHandler,
 		TicketHandler:            ticketHandler,
-		BeneficiaryHandler:       beneficiaryHandler,
-		PayoutHandler:            payoutHandler,
+		BeneficiaryHandler:            beneficiaryHandler,
+		PayoutHandler:                 payoutHandler,
+		RevertTransactionHandler:      revertTransactionHandler,
 	}, nil
 }

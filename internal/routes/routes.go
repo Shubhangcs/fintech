@@ -28,6 +28,7 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 	ticketRoutes(router, app)
 	beneficiaryRoutes(router, app)
 	payoutRoutes(router, app)
+	revertTransactionRoutes(router, app)
 
 	return router
 }
@@ -233,6 +234,22 @@ func bankRoutes(router *chi.Mux, app *app.Application) {
 		r.Put("/update/{id}", app.BankHandler.HandleUpdateAdminBank)
 		r.Delete("/delete/{id}", app.BankHandler.HandleDeleteAdminBank)
 		r.Get("/all", app.BankHandler.HandleGetAllAdminBanks)
+	})
+}
+
+func revertTransactionRoutes(router *chi.Mux, app *app.Application) {
+	router.Route("/revert-transaction", func(r chi.Router) {
+		r.Use(middlewares.AuthorizationMiddleware)
+
+		r.Post("/admin-to-md", app.RevertTransactionHandler.HandleAdminRevertOnMD)
+		r.Post("/admin-to-distributor", app.RevertTransactionHandler.HandleAdminRevertOnDistributor)
+		r.Post("/admin-to-retailer", app.RevertTransactionHandler.HandleAdminRevertOnRetailer)
+		r.Post("/md-to-distributor", app.RevertTransactionHandler.HandleMDRevertOnDistributor)
+		r.Post("/md-to-retailer", app.RevertTransactionHandler.HandleMDRevertOnRetailer)
+		r.Post("/distributor-to-retailer", app.RevertTransactionHandler.HandleDistributorRevertOnRetailer)
+		r.Get("/revert-by/{id}", app.RevertTransactionHandler.HandleGetRevertTransactionsByRevertByID)
+		r.Get("/revert-on/{id}", app.RevertTransactionHandler.HandleGetRevertTransactionsByRevertOnID)
+		r.Get("/all", app.RevertTransactionHandler.HandleGetAllRevertTransactions)
 	})
 }
 
