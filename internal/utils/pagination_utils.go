@@ -34,10 +34,19 @@ type QueryParams struct {
 
 func ReadQueryParams(r *http.Request) QueryParams {
 	p := ReadPaginationParams(r)
+	startDate := ParseDateParam(r, "start_date")
+	endDate := ParseDateParam(r, "end_date")
+	if endDate != nil {
+		// Push end_date to 23:59:59 IST so same-day queries return the full day.
+		// ParseDateParam already subtracted 5h30m, so adding 23h59m59s here
+		// is equivalent to setting 23:59:59 IST then converting to UTC.
+		t := endDate.Add(24*time.Hour - time.Second)
+		endDate = &t
+	}
 	return QueryParams{
 		Limit:     p.Limit,
 		Offset:    p.Offset,
-		StartDate: ParseDateParam(r, "start_date"),
-		EndDate:   ParseDateParam(r, "end_date"),
+		StartDate: startDate,
+		EndDate:   endDate,
 	}
 }

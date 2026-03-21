@@ -113,12 +113,9 @@ func (fh *FundRequestHandler) HandleGetFundRequestsByRequesterID(w http.Response
 		return
 	}
 
-	p := utils.ReadPaginationParams(r)
+	p := utils.ReadQueryParams(r)
 
-	startDate := utils.ParseDateParam(r, "start_date")
-	endDate := utils.ParseDateParam(r, "end_date")
-
-	requests, err := fh.fundRequestStore.GetFundRequestsByRequesterID(id, p.Limit, p.Offset, startDate, endDate)
+	requests, err := fh.fundRequestStore.GetFundRequestsByRequesterID(id, p.Limit, p.Offset, p.StartDate, p.EndDate)
 	if err != nil {
 		utils.ServerError(w, fh.logger, "get fund requests by requester id", err)
 		return
@@ -134,12 +131,9 @@ func (fh *FundRequestHandler) HandleGetFundRequestsByRequestToID(w http.Response
 		return
 	}
 
-	p := utils.ReadPaginationParams(r)
+	p := utils.ReadQueryParams(r)
 
-	startDate := utils.ParseDateParam(r, "start_date")
-	endDate := utils.ParseDateParam(r, "end_date")
-
-	requests, err := fh.fundRequestStore.GetFundRequestsByRequestToID(id, p.Limit, p.Offset, startDate, endDate)
+	requests, err := fh.fundRequestStore.GetFundRequestsByRequestToID(id, p.Limit, p.Offset, p.StartDate, p.EndDate)
 	if err != nil {
 		utils.ServerError(w, fh.logger, "get fund requests by request_to id", err)
 		return
@@ -149,11 +143,9 @@ func (fh *FundRequestHandler) HandleGetFundRequestsByRequestToID(w http.Response
 }
 
 func (fh *FundRequestHandler) HandleGetAllFundRequests(w http.ResponseWriter, r *http.Request) {
-	p := utils.ReadPaginationParams(r)
-	startDate := utils.ParseDateParam(r, "start_date")
-	endDate := utils.ParseDateParam(r, "end_date")
+	p := utils.ReadQueryParams(r)
 
-	requests, err := fh.fundRequestStore.GetAllFundRequests(p.Limit, p.Offset, startDate, endDate)
+	requests, err := fh.fundRequestStore.GetAllFundRequests(p.Limit, p.Offset, p.StartDate, p.EndDate)
 	if err != nil {
 		utils.ServerError(w, fh.logger, "get all fund requests", err)
 		return
