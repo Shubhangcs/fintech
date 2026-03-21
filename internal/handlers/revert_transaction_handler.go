@@ -21,78 +21,37 @@ func NewRevertTransactionHandler(revertStore store.RevertTransactionStore, logge
 	return &RevertTransactionHandler{revertStore: revertStore, logger: logger}
 }
 
-// --- create handlers ---
-
+// Admin Revert on Master Distributor Handler
 func (rh *RevertTransactionHandler) HandleAdminRevertOnMD(w http.ResponseWriter, r *http.Request) {
-	rh.handleCreate(w, r, "admin revert on md", "A", "M")
+	rh.handleCreate(w, r, "admin revert on master distributor", "A", "M")
 }
 
+// Admin Revert on Distributor Handler
 func (rh *RevertTransactionHandler) HandleAdminRevertOnDistributor(w http.ResponseWriter, r *http.Request) {
 	rh.handleCreate(w, r, "admin revert on distributor", "A", "D")
 }
 
+// Admin Revert on Retailer Handler
 func (rh *RevertTransactionHandler) HandleAdminRevertOnRetailer(w http.ResponseWriter, r *http.Request) {
 	rh.handleCreate(w, r, "admin revert on retailer", "A", "R")
 }
 
+// Master Distributor Revert on Distributor Handler
 func (rh *RevertTransactionHandler) HandleMDRevertOnDistributor(w http.ResponseWriter, r *http.Request) {
-	rh.handleCreate(w, r, "md revert on distributor", "M", "D")
+	rh.handleCreate(w, r, "master distributor revert on distributor", "M", "D")
 }
 
+// Master Distributor Revert on Retailer Handler
 func (rh *RevertTransactionHandler) HandleMDRevertOnRetailer(w http.ResponseWriter, r *http.Request) {
-	rh.handleCreate(w, r, "md revert on retailer", "M", "R")
+	rh.handleCreate(w, r, "master distributor revert on retailer", "M", "R")
 }
 
+// Distributor Revert on Retailer Handler
 func (rh *RevertTransactionHandler) HandleDistributorRevertOnRetailer(w http.ResponseWriter, r *http.Request) {
 	rh.handleCreate(w, r, "distributor revert on retailer", "D", "R")
 }
 
-// --- get handlers ---
-
-func (rh *RevertTransactionHandler) HandleGetRevertTransactionsByRevertByID(w http.ResponseWriter, r *http.Request) {
-	id, err := utils.ReadParamID(r)
-	if err != nil {
-		utils.BadRequest(w, rh.logger, "get revert transactions by revert_by id", err)
-		return
-	}
-
-	results, err := rh.revertStore.GetRevertTransactionsByRevertByID(id, utils.ReadQueryParams(r))
-	if err != nil {
-		utils.ServerError(w, rh.logger, "get revert transactions by revert_by id", err)
-		return
-	}
-
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "revert transactions fetched successfully", "revert_transactions": results})
-}
-
-func (rh *RevertTransactionHandler) HandleGetRevertTransactionsByRevertOnID(w http.ResponseWriter, r *http.Request) {
-	id, err := utils.ReadParamID(r)
-	if err != nil {
-		utils.BadRequest(w, rh.logger, "get revert transactions by revert_on id", err)
-		return
-	}
-
-	results, err := rh.revertStore.GetRevertTransactionsByRevertOnID(id, utils.ReadQueryParams(r))
-	if err != nil {
-		utils.ServerError(w, rh.logger, "get revert transactions by revert_on id", err)
-		return
-	}
-
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "revert transactions fetched successfully", "revert_transactions": results})
-}
-
-func (rh *RevertTransactionHandler) HandleGetAllRevertTransactions(w http.ResponseWriter, r *http.Request) {
-	results, err := rh.revertStore.GetAllRevertTransactions(utils.ReadQueryParams(r))
-	if err != nil {
-		utils.ServerError(w, rh.logger, "get all revert transactions", err)
-		return
-	}
-
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "revert transactions fetched successfully", "revert_transactions": results})
-}
-
-// --- private helpers ---
-
+// Create Revert Function
 func (rh *RevertTransactionHandler) handleCreate(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -131,6 +90,52 @@ func (rh *RevertTransactionHandler) handleCreate(
 	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"message": "revert transaction created successfully", "revert_transaction": req})
 }
 
+// Get Revert Transactions By Revert By ID Handler
+func (rh *RevertTransactionHandler) HandleGetRevertTransactionsByRevertByID(w http.ResponseWriter, r *http.Request) {
+	id, err := utils.ReadParamID(r)
+	if err != nil {
+		utils.BadRequest(w, rh.logger, "get revert transactions by revert_by id", err)
+		return
+	}
+
+	results, err := rh.revertStore.GetRevertTransactionsByRevertByID(id, utils.ReadQueryParams(r))
+	if err != nil {
+		utils.ServerError(w, rh.logger, "get revert transactions by revert_by id", err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "revert transactions fetched successfully", "revert_transactions": results})
+}
+
+// Get Revert Transactions By Revert On ID Handler
+func (rh *RevertTransactionHandler) HandleGetRevertTransactionsByRevertOnID(w http.ResponseWriter, r *http.Request) {
+	id, err := utils.ReadParamID(r)
+	if err != nil {
+		utils.BadRequest(w, rh.logger, "get revert transactions by revert_on id", err)
+		return
+	}
+
+	results, err := rh.revertStore.GetRevertTransactionsByRevertOnID(id, utils.ReadQueryParams(r))
+	if err != nil {
+		utils.ServerError(w, rh.logger, "get revert transactions by revert_on id", err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "revert transactions fetched successfully", "revert_transactions": results})
+}
+
+// Get All Revert Transactions Handler
+func (rh *RevertTransactionHandler) HandleGetAllRevertTransactions(w http.ResponseWriter, r *http.Request) {
+	results, err := rh.revertStore.GetAllRevertTransactions(utils.ReadQueryParams(r))
+	if err != nil {
+		utils.ServerError(w, rh.logger, "get all revert transactions", err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "revert transactions fetched successfully", "revert_transactions": results})
+}
+
+// Error Helper Function
 func isRevertClientErr(err error) bool {
 	msg := err.Error()
 	return msg == "revert_on user not found" ||

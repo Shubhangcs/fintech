@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/levionstudio/fintech/internal/models"
@@ -26,130 +25,37 @@ func NewFundRequestHandler(fundRequestStore store.FundRequestStore, logger *slog
 	}
 }
 
-// --- create handlers ---
-
+// Fund Request From Master Distributor to Admin Handler
 func (fh *FundRequestHandler) HandleMDRequestToAdmin(w http.ResponseWriter, r *http.Request) {
-	fh.handleCreate(w, r, "md request to admin", "M", "A")
+	fh.handleCreate(w, r, "fund request from master distributor to admin", "M", "A")
 }
 
+// Fund Request From Distributor to Admin Handler
 func (fh *FundRequestHandler) HandleDistributorRequestToAdmin(w http.ResponseWriter, r *http.Request) {
-	fh.handleCreate(w, r, "distributor request to admin", "D", "A")
+	fh.handleCreate(w, r, "fund request from distributor to admin", "D", "A")
 }
 
+// Fund Request From Distributor to Master Distributor Handler
 func (fh *FundRequestHandler) HandleDistributorRequestToMD(w http.ResponseWriter, r *http.Request) {
-	fh.handleCreate(w, r, "distributor request to md", "D", "M")
+	fh.handleCreate(w, r, "fund request from distributor to master distributor", "D", "M")
 }
 
+// Fund Request From Retailer to Admin Handler
 func (fh *FundRequestHandler) HandleRetailerRequestToAdmin(w http.ResponseWriter, r *http.Request) {
-	fh.handleCreate(w, r, "retailer request to admin", "R", "A")
+	fh.handleCreate(w, r, "fund request from retailer to admin", "R", "A")
 }
 
+// Fund Request From Retailer to Master Distributor Handler
 func (fh *FundRequestHandler) HandleRetailerRequestToMD(w http.ResponseWriter, r *http.Request) {
-	fh.handleCreate(w, r, "retailer request to md", "R", "M")
+	fh.handleCreate(w, r, "fund request from retailer to master distributor", "R", "M")
 }
 
+// Fund Request From Retailer to Distributor Handler
 func (fh *FundRequestHandler) HandleRetailerRequestToDistributor(w http.ResponseWriter, r *http.Request) {
-	fh.handleCreate(w, r, "retailer request to distributor", "R", "D")
+	fh.handleCreate(w, r, "fund request from retailer to distributor", "R", "D")
 }
 
-// --- approve / reject ---
-
-func (fh *FundRequestHandler) HandleApproveFundRequest(w http.ResponseWriter, r *http.Request) {
-	id, err := readFundRequestID(r)
-	if err != nil {
-		utils.BadRequest(w, fh.logger, "approve fund request", err)
-		return
-	}
-
-	if err := fh.fundRequestStore.ApproveFundRequest(id); err != nil {
-		if isFundRequestClientErr(err) {
-			utils.BadRequest(w, fh.logger, "approve fund request", err)
-			return
-		}
-		utils.ServerError(w, fh.logger, "approve fund request", err)
-		return
-	}
-
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "fund request approved successfully"})
-}
-
-func (fh *FundRequestHandler) HandleRejectFundRequest(w http.ResponseWriter, r *http.Request) {
-	id, err := readFundRequestID(r)
-	if err != nil {
-		utils.BadRequest(w, fh.logger, "reject fund request", err)
-		return
-	}
-
-	var body struct {
-		RejectRemarks string `json:"reject_remarks"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		utils.BadRequest(w, fh.logger, "reject fund request", err)
-		return
-	}
-	if body.RejectRemarks == "" {
-		utils.BadRequest(w, fh.logger, "reject fund request", errors.New("reject_remarks is required"))
-		return
-	}
-
-	if err := fh.fundRequestStore.RejectFundRequest(id, body.RejectRemarks); err != nil {
-		if isFundRequestClientErr(err) {
-			utils.BadRequest(w, fh.logger, "reject fund request", err)
-			return
-		}
-		utils.ServerError(w, fh.logger, "reject fund request", err)
-		return
-	}
-
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "fund request rejected successfully"})
-}
-
-// --- get handlers ---
-
-func (fh *FundRequestHandler) HandleGetFundRequestsByRequesterID(w http.ResponseWriter, r *http.Request) {
-	id, err := utils.ReadParamID(r)
-	if err != nil {
-		utils.BadRequest(w, fh.logger, "get fund requests by requester id", err)
-		return
-	}
-
-	requests, err := fh.fundRequestStore.GetFundRequestsByRequesterID(id, utils.ReadQueryParams(r))
-	if err != nil {
-		utils.ServerError(w, fh.logger, "get fund requests by requester id", err)
-		return
-	}
-
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "fund requests fetched successfully", "fund_requests": requests})
-}
-
-func (fh *FundRequestHandler) HandleGetFundRequestsByRequestToID(w http.ResponseWriter, r *http.Request) {
-	id, err := utils.ReadParamID(r)
-	if err != nil {
-		utils.BadRequest(w, fh.logger, "get fund requests by request_to id", err)
-		return
-	}
-
-	requests, err := fh.fundRequestStore.GetFundRequestsByRequestToID(id, utils.ReadQueryParams(r))
-	if err != nil {
-		utils.ServerError(w, fh.logger, "get fund requests by request_to id", err)
-		return
-	}
-
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "fund requests fetched successfully", "fund_requests": requests})
-}
-
-func (fh *FundRequestHandler) HandleGetAllFundRequests(w http.ResponseWriter, r *http.Request) {
-	requests, err := fh.fundRequestStore.GetAllFundRequests(utils.ReadQueryParams(r))
-	if err != nil {
-		utils.ServerError(w, fh.logger, "get all fund requests", err)
-		return
-	}
-
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "fund requests fetched successfully", "fund_requests": requests})
-}
-
-// --- private helpers ---
-
+// Common Create Function
 func (fh *FundRequestHandler) handleCreate(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -188,16 +94,100 @@ func (fh *FundRequestHandler) handleCreate(
 	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{"message": "fund request created successfully", "fund_request": req})
 }
 
-func readFundRequestID(r *http.Request) (int64, error) {
-	idStr, err := utils.ReadParamID(r)
+// Approve Fund Request Handler
+func (fh *FundRequestHandler) HandleApproveFundRequest(w http.ResponseWriter, r *http.Request) {
+	id, err := utils.ReadParamIDInt(r)
 	if err != nil {
-		return 0, err
+		utils.BadRequest(w, fh.logger, "approve fund request", err)
+		return
 	}
-	id, err := strconv.ParseInt(idStr, 10, 64)
+
+	if err := fh.fundRequestStore.ApproveFundRequest(id); err != nil {
+		if isFundRequestClientErr(err) {
+			utils.BadRequest(w, fh.logger, "approve fund request", err)
+			return
+		}
+		utils.ServerError(w, fh.logger, "approve fund request", err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "fund request approved successfully"})
+}
+
+// Reject Fund Request Handler
+func (fh *FundRequestHandler) HandleRejectFundRequest(w http.ResponseWriter, r *http.Request) {
+	id, err := utils.ReadParamIDInt(r)
 	if err != nil {
-		return 0, errors.New("invalid fund request id")
+		utils.BadRequest(w, fh.logger, "reject fund request", err)
+		return
 	}
-	return id, nil
+
+	var req models.FundRequestModel
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.BadRequest(w, fh.logger, "reject fund request", err)
+		return
+	}
+	if req.RejectRemarks == nil {
+		utils.BadRequest(w, fh.logger, "reject fund request", errors.New("reject_remarks is required"))
+		return
+	}
+
+	req.FundRequestID = id
+	if err := fh.fundRequestStore.RejectFundRequest(&req); err != nil {
+		if isFundRequestClientErr(err) {
+			utils.BadRequest(w, fh.logger, "reject fund request", err)
+			return
+		}
+		utils.ServerError(w, fh.logger, "reject fund request", err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "fund request rejected successfully"})
+}
+
+// Get Fund Request By Requester ID Handler
+func (fh *FundRequestHandler) HandleGetFundRequestsByRequesterID(w http.ResponseWriter, r *http.Request) {
+	id, err := utils.ReadParamID(r)
+	if err != nil {
+		utils.BadRequest(w, fh.logger, "get fund requests by requester id", err)
+		return
+	}
+
+	requests, err := fh.fundRequestStore.GetFundRequestsByRequesterID(id, utils.ReadQueryParams(r))
+	if err != nil {
+		utils.ServerError(w, fh.logger, "get fund requests by requester id", err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "fund requests fetched successfully", "fund_requests": requests})
+}
+
+// Get Fund Request By Request To ID Handler
+func (fh *FundRequestHandler) HandleGetFundRequestsByRequestToID(w http.ResponseWriter, r *http.Request) {
+	id, err := utils.ReadParamID(r)
+	if err != nil {
+		utils.BadRequest(w, fh.logger, "get fund requests by request_to id", err)
+		return
+	}
+
+	requests, err := fh.fundRequestStore.GetFundRequestsByRequestToID(id, utils.ReadQueryParams(r))
+	if err != nil {
+		utils.ServerError(w, fh.logger, "get fund requests by request_to id", err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "fund requests fetched successfully", "fund_requests": requests})
+}
+
+// Get All Fund Request Handler
+func (fh *FundRequestHandler) HandleGetAllFundRequests(w http.ResponseWriter, r *http.Request) {
+	requests, err := fh.fundRequestStore.GetAllFundRequests(utils.ReadQueryParams(r))
+	if err != nil {
+		utils.ServerError(w, fh.logger, "get all fund requests", err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "fund requests fetched successfully", "fund_requests": requests})
 }
 
 func prefixToRole(prefix string) string {
@@ -215,6 +205,7 @@ func prefixToRole(prefix string) string {
 	}
 }
 
+// Error Helper Function
 func isFundRequestClientErr(err error) bool {
 	msg := err.Error()
 	return msg == "fund request not found" ||

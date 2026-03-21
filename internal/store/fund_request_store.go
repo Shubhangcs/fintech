@@ -21,13 +21,13 @@ func NewPostgresFundRequestStore(db *sql.DB, walletStore WalletTransactionStore)
 type FundRequestStore interface {
 	CreateFundRequest(fr *models.FundRequestModel) error
 	ApproveFundRequest(fundRequestID int64) error
-	RejectFundRequest(fundRequestID int64, rejectRemarks string) error
+	RejectFundRequest(fr *models.FundRequestModel) error
 	GetFundRequestsByRequesterID(requesterID string, p utils.QueryParams) ([]models.FundRequestModel, error)
 	GetFundRequestsByRequestToID(requestToID string, p utils.QueryParams) ([]models.FundRequestModel, error)
 	GetAllFundRequests(p utils.QueryParams) ([]models.FundRequestModel, error)
 }
 
-// CreateFundRequest inserts a new PENDING fund request.
+// Create Fund Request
 func (fs *PostgresFundRequestStore) CreateFundRequest(fr *models.FundRequestModel) error {
 	const q = `
 	INSERT INTO fund_requests (
@@ -42,8 +42,7 @@ func (fs *PostgresFundRequestStore) CreateFundRequest(fr *models.FundRequestMode
 	).Scan(&fr.FundRequestID, &fr.RequestStatus, &fr.CreatedAT, &fr.UpdatedAT)
 }
 
-// ApproveFundRequest transfers funds from request_to → requester and marks the request ACCEPTED.
-// Uses SELECT FOR UPDATE inside the transaction to prevent concurrent double-approvals.
+// Approve Fund Request
 func (fs *PostgresFundRequestStore) ApproveFundRequest(fundRequestID int64) error {
 	tx, err := fs.db.Begin()
 	if err != nil {
@@ -51,8 +50,8 @@ func (fs *PostgresFundRequestStore) ApproveFundRequest(fundRequestID int64) erro
 	}
 	defer tx.Rollback()
 
-	// 1. Lock the fund request row — prevents concurrent approvals of the same request
 	var fr models.FundRequestModel
+	// Getting the Fund Request Details And Locking The Specific Fund Request Row To Prevent Concurrent Multiple Approval
 	err = tx.QueryRow(`
 		SELECT fund_request_id, requester_id, request_to_id, amount, request_status, remarks
 		FROM fund_requests WHERE fund_request_id = $1 FOR UPDATE
@@ -70,7 +69,7 @@ func (fs *PostgresFundRequestStore) ApproveFundRequest(fundRequestID int64) erro
 		return fmt.Errorf("fund request is already %s", fr.RequestStatus)
 	}
 
-	// 2. Resolve wallet tables from ID prefixes
+	// Get Requester and Request To Table Details
 	requestToWallet, err := walletInfoFromID(fr.RequestToID)
 	if err != nil {
 		return err
@@ -80,7 +79,7 @@ func (fs *PostgresFundRequestStore) ApproveFundRequest(fundRequestID int64) erro
 		return err
 	}
 
-	// 3. Atomically debit request_to — fails if not found or balance insufficient
+	// Deduct Amount From Request To And Get Before and After Balance
 	requestToBefore, requestToAfter, err := debitTx(tx, requestToWallet.table, requestToWallet.idCol, requestToWallet.balanceCol, fr.RequestToID, fr.Amount)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -89,16 +88,16 @@ func (fs *PostgresFundRequestStore) ApproveFundRequest(fundRequestID int64) erro
 		return err
 	}
 
-	// 4. Atomically credit requester
+	// Credit Amount To Requester And Get Before and After Balance
 	requesterBefore, requesterAfter, err := creditTx(tx, requesterWallet.table, requesterWallet.idCol, requesterWallet.balanceCol, fr.RequesterID, fr.Amount)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return errors.New("requester not found")
+			return errors.New("requester not found") // SUS
 		}
 		return err
 	}
 
-	// 5. Mark request as ACCEPTED (AND status = 'PENDING' is a safety guard)
+	// Updating The Fund Request Status To Accepted
 	res, err := tx.Exec(`
 		UPDATE fund_requests SET request_status = 'ACCEPTED', updated_at = CURRENT_TIMESTAMP
 		WHERE fund_request_id = $1 AND request_status = 'PENDING'
@@ -106,14 +105,18 @@ func (fs *PostgresFundRequestStore) ApproveFundRequest(fundRequestID int64) erro
 	if err != nil {
 		return err
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
 		return errors.New("fund request not found or already processed")
 	}
 
 	refID := fmt.Sprintf("%d", fundRequestID)
 	remarks := fmt.Sprintf("Fund request approved: %s", fr.Remarks)
 
-	// 6. Wallet tx for request_to (debit)
+	// Adding Wallet Transactions of Request To
 	debitAmt := fr.Amount
 	if err = fs.walletStore.CreateWalletTransactionTx(tx, &models.WalletTransactionModel{
 		UserID: fr.RequestToID, ReferenceID: refID,
@@ -123,7 +126,7 @@ func (fs *PostgresFundRequestStore) ApproveFundRequest(fundRequestID int64) erro
 		return err
 	}
 
-	// 7. Wallet tx for requester (credit)
+	// Adding Wallet Transactions of Requester
 	creditAmt := fr.Amount
 	if err = fs.walletStore.CreateWalletTransactionTx(tx, &models.WalletTransactionModel{
 		UserID: fr.RequesterID, ReferenceID: refID,
@@ -137,12 +140,12 @@ func (fs *PostgresFundRequestStore) ApproveFundRequest(fundRequestID int64) erro
 }
 
 // Reject Fund Request
-func (fs *PostgresFundRequestStore) RejectFundRequest(fundRequestID int64, rejectRemarks string) error {
+func (fs *PostgresFundRequestStore) RejectFundRequest(fr *models.FundRequestModel) error {
 	res, err := fs.db.Exec(`
 		UPDATE fund_requests
 		SET request_status = 'REJECTED', reject_remarks = $1, updated_at = CURRENT_TIMESTAMP
 		WHERE fund_request_id = $2 AND request_status = 'PENDING'
-	`, rejectRemarks, fundRequestID)
+	`, fr.RejectRemarks, fr.FundRequestID)
 	if err != nil {
 		return err
 	}

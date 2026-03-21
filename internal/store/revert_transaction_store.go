@@ -25,11 +25,7 @@ type RevertTransactionStore interface {
 	GetAllRevertTransactions(p utils.QueryParams) ([]models.RevertTransactionModel, error)
 }
 
-// CreateRevertTransaction atomically:
-//  1. Debits revert_on's wallet
-//  2. Credits revert_by's wallet
-//  3. Inserts the revert_transaction record as SUCCESS
-//  4. Inserts wallet transaction entries for both parties
+// Create Revert Transaction
 func (rs *PostgresRevertTransactionStore) CreateRevertTransaction(rt *models.RevertTransactionModel) error {
 	tx, err := rs.db.Begin()
 	if err != nil {
@@ -102,6 +98,7 @@ func (rs *PostgresRevertTransactionStore) CreateRevertTransaction(rt *models.Rev
 	return tx.Commit()
 }
 
+// Get Revert Transaction Query
 const revertTransactionSelectBase = `
 SELECT
 	rt.revert_transaction_id, rt.revert_by_id, rt.revert_on_id, rt.amount,
@@ -135,6 +132,7 @@ LEFT JOIN LATERAL (
 ) o ON TRUE
 `
 
+// Get Revert Transaction By Revert By ID
 func (rs *PostgresRevertTransactionStore) GetRevertTransactionsByRevertByID(revertByID string, p utils.QueryParams) ([]models.RevertTransactionModel, error) {
 	q := revertTransactionSelectBase + `
 	WHERE rt.revert_by_id = $1
@@ -146,6 +144,7 @@ func (rs *PostgresRevertTransactionStore) GetRevertTransactionsByRevertByID(reve
 	return scanRevertTransactions(rs.db, q, revertByID, p.Limit, p.Offset, p.StartDate, p.EndDate)
 }
 
+// Get Revert Transactions By Revert On ID
 func (rs *PostgresRevertTransactionStore) GetRevertTransactionsByRevertOnID(revertOnID string, p utils.QueryParams) ([]models.RevertTransactionModel, error) {
 	q := revertTransactionSelectBase + `
 	WHERE rt.revert_on_id = $1
@@ -157,6 +156,7 @@ func (rs *PostgresRevertTransactionStore) GetRevertTransactionsByRevertOnID(reve
 	return scanRevertTransactions(rs.db, q, revertOnID, p.Limit, p.Offset, p.StartDate, p.EndDate)
 }
 
+// Get All Revert Transactions
 func (rs *PostgresRevertTransactionStore) GetAllRevertTransactions(p utils.QueryParams) ([]models.RevertTransactionModel, error) {
 	q := revertTransactionSelectBase + `
 	WHERE rt.created_at >= COALESCE($3, '-infinity'::TIMESTAMPTZ)
