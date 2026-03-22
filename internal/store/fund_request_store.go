@@ -51,7 +51,6 @@ func (fs *PostgresFundRequestStore) ApproveFundRequest(fundRequestID int64) erro
 	defer tx.Rollback()
 
 	var fr models.FundRequestModel
-	// Getting the Fund Request Details And Locking The Specific Fund Request Row To Prevent Concurrent Multiple Approval
 	err = tx.QueryRow(`
 		SELECT fund_request_id, requester_id, request_to_id, amount, request_status, remarks
 		FROM fund_requests WHERE fund_request_id = $1 FOR UPDATE
@@ -69,30 +68,38 @@ func (fs *PostgresFundRequestStore) ApproveFundRequest(fundRequestID int64) erro
 		return fmt.Errorf("fund request is already %s", fr.RequestStatus)
 	}
 
-	// Get Requester and Request To Table Details
-	requestToWallet, err := walletInfoFromID(fr.RequestToID)
+	requestToInfo, err := getUserTableInfo(fr.RequestToID)
 	if err != nil {
 		return err
 	}
-	requesterWallet, err := walletInfoFromID(fr.RequesterID)
+	requesterInfo, err := getUserTableInfo(fr.RequesterID)
 	if err != nil {
 		return err
 	}
 
-	// Deduct Amount From Request To And Get Before and After Balance
-	requestToBefore, requestToAfter, err := debitTx(tx, requestToWallet.table, requestToWallet.idCol, requestToWallet.balanceCol, fr.RequestToID, fr.Amount)
-	if err != nil {
+	refID := fmt.Sprintf("%d", fundRequestID)
+	remarks := fmt.Sprintf("Fund request approved: %s", fr.Remarks)
+
+	// Debit request_to — atomically checks balance, also creates wallet transaction entry
+	if err = debitTx(tx, transaction{
+		UserID: fr.RequestToID, ReferenceID: refID,
+		Amount: fr.Amount, Reason: "FUND_REQUEST", Remarks: remarks,
+		userTableInfo: *requestToInfo,
+	}, fs.walletStore); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return checkExistsTx(tx, requestToWallet.table, requestToWallet.idCol, fr.RequestToID, "request_to user")
+			return checkExistsTx(tx, requestToInfo.TableName, requestToInfo.IDColumnName, fr.RequestToID, "request_to user")
 		}
 		return err
 	}
 
-	// Credit Amount To Requester And Get Before and After Balance
-	requesterBefore, requesterAfter, err := creditTx(tx, requesterWallet.table, requesterWallet.idCol, requesterWallet.balanceCol, fr.RequesterID, fr.Amount)
-	if err != nil {
+	// Credit requester — also creates wallet transaction entry
+	if err = creditTx(tx, transaction{
+		UserID: fr.RequesterID, ReferenceID: refID,
+		Amount: fr.Amount, Reason: "FUND_REQUEST", Remarks: remarks,
+		userTableInfo: *requesterInfo,
+	}, fs.walletStore); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return errors.New("requester not found") // SUS
+			return errors.New("requester not found")
 		}
 		return err
 	}
@@ -111,29 +118,6 @@ func (fs *PostgresFundRequestStore) ApproveFundRequest(fundRequestID int64) erro
 	}
 	if n == 0 {
 		return errors.New("fund request not found or already processed")
-	}
-
-	refID := fmt.Sprintf("%d", fundRequestID)
-	remarks := fmt.Sprintf("Fund request approved: %s", fr.Remarks)
-
-	// Adding Wallet Transactions of Request To
-	debitAmt := fr.Amount
-	if err = fs.walletStore.CreateWalletTransactionTx(tx, &models.WalletTransactionModel{
-		UserID: fr.RequestToID, ReferenceID: refID,
-		DebitAmount: &debitAmt, BeforeBalance: requestToBefore, AfterBalance: requestToAfter,
-		TransactionReason: "FUND_REQUEST", Remarks: remarks,
-	}); err != nil {
-		return err
-	}
-
-	// Adding Wallet Transactions of Requester
-	creditAmt := fr.Amount
-	if err = fs.walletStore.CreateWalletTransactionTx(tx, &models.WalletTransactionModel{
-		UserID: fr.RequesterID, ReferenceID: refID,
-		CreditAmount: &creditAmt, BeforeBalance: requesterBefore, AfterBalance: requesterAfter,
-		TransactionReason: "FUND_REQUEST", Remarks: remarks,
-	}); err != nil {
-		return err
 	}
 
 	return tx.Commit()

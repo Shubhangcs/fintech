@@ -104,10 +104,20 @@ func creditTx(tx *sql.Tx, txn transaction, wts WalletTransactionStore) error {
 		`UPDATE %s SET %s = %s + $1, updated_at = CURRENT_TIMESTAMP
 		 WHERE %s = $2
 		 RETURNING %s - $1, %s;`,
-		txn.TableName, txn.WalletBalanceColumnName, txn.WalletBalanceColumnName, idCol, balanceCol, balanceCol,
+		txn.TableName, txn.WalletBalanceColumnName, txn.WalletBalanceColumnName,
+		txn.IDColumnName, txn.WalletBalanceColumnName, txn.WalletBalanceColumnName,
 	)
-	err = tx.QueryRow(q, amount, id).Scan(&before, &after)
-	return
+	var before, after float64
+	err := tx.QueryRow(q, txn.Amount, txn.UserID).Scan(&before, &after)
+	if err != nil {
+		return err
+	}
+
+	err = wts.CreateWalletTransactionTx(tx, &models.WalletTransactionModel{
+		UserID: txn.UserID, ReferenceID: txn.ReferenceID, CreditAmount: &txn.Amount,
+		BeforeBalance: before, AfterBalance: after, TransactionReason: txn.Reason, Remarks: txn.Remarks,
+	})
+	return err
 }
 
 func checkExistsTx(tx *sql.Tx, table, idCol, id, role string) error {
@@ -133,7 +143,9 @@ func (ps *PostgresPayoutTransactionStore) resolveCommision(
 	return ps.commisionStore.GetDefaultCommision(amount)
 }
 
-func (ps *PostgresPayoutTransactionStore) getRetailerTransactionLimit(retailerID, service string) (float64, error) {
+func (ps *PostgresPayoutTransactionStore) getRetailerTransactionLimit(
+	retailerID, service string,
+) (float64, error) {
 	limit, _, err := ps.transactionLimitStore.GetTransactionLimitByRetailerIDAndService(&models.TransactionLimitModel{RetailerID: retailerID, Service: service})
 	if err != nil {
 		return 0, err
@@ -141,7 +153,9 @@ func (ps *PostgresPayoutTransactionStore) getRetailerTransactionLimit(retailerID
 	return limit, nil
 }
 
-func getRetailerDetails(db *sql.DB, retailerID string) (retailerChain, error) {
+func getRetailerDetails(
+	db *sql.DB, retailerID string,
+) (retailerChain, error) {
 	const q = `
 	SELECT
 		r.retailer_kyc_status,
@@ -167,56 +181,4 @@ func getRetailerDetails(db *sql.DB, retailerID string) (retailerChain, error) {
 		return retailerChain{}, err
 	}
 	return rc, nil
-}
-
-func (ps *PostgresPayoutTransactionStore) creditIfNonZero(
-	tx *sql.Tx,
-	userID, refID, remarks, service string,
-	amount float64,
-) error {
-	if amount <= 0 {
-		return nil
-	}
-	wi, err := walletInfoFromID(userID)
-	if err != nil {
-		return err
-	}
-	before, after, err := creditTx(tx, wi.table, wi.idCol, wi.balanceCol, userID, amount)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return fmt.Errorf("%s not found", userID)
-		}
-		return err
-	}
-	return ps.walletStore.CreateWalletTransactionTx(tx, &models.WalletTransactionModel{
-		UserID: userID, ReferenceID: refID,
-		CreditAmount: &amount, BeforeBalance: before, AfterBalance: after,
-		TransactionReason: service, Remarks: remarks,
-	})
-}
-
-func (ps *PostgresPayoutTransactionStore) debitIfNonZero(
-	tx *sql.Tx,
-	userID, refID, remarks, service string,
-	amount float64,
-) error {
-	if amount <= 0 {
-		return nil
-	}
-	wi, err := walletInfoFromID(userID)
-	if err != nil {
-		return err
-	}
-	before, after, err := debitTx(tx, wi.table, wi.idCol, wi.balanceCol, userID, amount)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return fmt.Errorf("%s not found", userID)
-		}
-		return err
-	}
-	return ps.walletStore.CreateWalletTransactionTx(tx, &models.WalletTransactionModel{
-		UserID: userID, ReferenceID: refID,
-		DebitAmount: &amount, BeforeBalance: before, AfterBalance: after,
-		TransactionReason: service, Remarks: remarks,
-	})
 }

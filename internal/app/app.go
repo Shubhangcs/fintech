@@ -57,7 +57,7 @@ func NewApplication() (*Application, error) {
 	ticketStore := store.NewPostgresTicketStore(pgdb)
 	beneficiaryStore := store.NewPostgresBeneficiaryStore(pgdb)
 	revertTransactionStore := store.NewPostgresRevertTransactionStore(pgdb, walletTransactionStore)
-	payoutTransactionStore := store.NewPostgresPayoutTransactionStore(pgdb, commisionStore, walletTransactionStore)
+	payoutTransactionStore := store.NewPostgresPayoutTransactionStore(pgdb, commisionStore, walletTransactionStore, transactionLimitStore)
 
 	// Handlers
 	adminHandler := handlers.NewAdminHandler(adminStore, walletTransactionStore, logger)

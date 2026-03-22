@@ -35,108 +35,79 @@ type FundTransferStore interface {
 
 // Admin To MD Fund Transfer
 func (fs *PostgresFundTransferStore) AdminToMD(ft *models.FundTransferModel) error {
-	return fs.transfer(ft,
-		"admins", "admin_id", "admin_wallet_balance",
-		"master_distributors", "master_distributor_id", "master_distributor_wallet_balance",
-	)
+	return fs.transfer(ft)
 }
 
 // Admin To Distributor Fund Transfer
 func (fs *PostgresFundTransferStore) AdminToDistributor(ft *models.FundTransferModel) error {
-	return fs.transfer(ft,
-		"admins", "admin_id", "admin_wallet_balance",
-		"distributors", "distributor_id", "distributor_wallet_balance",
-	)
+	return fs.transfer(ft)
 }
 
 // Admin To Retailer Fund Transfer
 func (fs *PostgresFundTransferStore) AdminToRetailer(ft *models.FundTransferModel) error {
-	return fs.transfer(ft,
-		"admins", "admin_id", "admin_wallet_balance",
-		"retailers", "retailer_id", "retailer_wallet_balance",
-	)
+	return fs.transfer(ft)
 }
 
 // MD To Distributor Fund Transfer
 func (fs *PostgresFundTransferStore) MDToDistributor(ft *models.FundTransferModel) error {
-	return fs.transfer(ft,
-		"master_distributors", "master_distributor_id", "master_distributor_wallet_balance",
-		"distributors", "distributor_id", "distributor_wallet_balance",
-	)
+	return fs.transfer(ft)
 }
 
 // MD To Retailer Fund Transfer
 func (fs *PostgresFundTransferStore) MDToRetailer(ft *models.FundTransferModel) error {
-	return fs.transfer(ft,
-		"master_distributors", "master_distributor_id", "master_distributor_wallet_balance",
-		"retailers", "retailer_id", "retailer_wallet_balance",
-	)
+	return fs.transfer(ft)
 }
 
 // Distributor To Retailer Fund Transfer
 func (fs *PostgresFundTransferStore) DistributorToRetailer(ft *models.FundTransferModel) error {
-	return fs.transfer(ft,
-		"distributors", "distributor_id", "distributor_wallet_balance",
-		"retailers", "retailer_id", "retailer_wallet_balance",
-	)
+	return fs.transfer(ft)
 }
 
-func (fs *PostgresFundTransferStore) transfer(
-	ft *models.FundTransferModel,
-	senderTable, senderIDCol, senderBalanceCol string,
-	receiverTable, receiverIDCol, receiverBalanceCol string,
-) error {
+func (fs *PostgresFundTransferStore) transfer(ft *models.FundTransferModel) error {
+	senderInfo, err := getUserTableInfo(ft.FundTransfererID)
+	if err != nil {
+		return err
+	}
+	receiverInfo, err := getUserTableInfo(ft.FundReceiverID)
+	if err != nil {
+		return err
+	}
+
 	tx, err := fs.db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	// 1. Atomically debit sender — single UPDATE, checks balance in the WHERE clause
-	senderBefore, senderAfter, err := debitTx(tx, senderTable, senderIDCol, senderBalanceCol, ft.FundTransfererID, ft.Amount)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return checkExistsTx(tx, senderTable, senderIDCol, ft.FundTransfererID, "sender")
-		}
-		return err
-	}
-
-	// 2. Atomically credit receiver
-	receiverBefore, receiverAfter, err := creditTx(tx, receiverTable, receiverIDCol, receiverBalanceCol, ft.FundReceiverID, ft.Amount)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return errors.New("receiver not found")
-		}
-		return err
-	}
-
-	// 3. Insert fund_transfer record
+	// 1. Insert fund_transfer record first to get the reference ID for wallet entries
 	ft.FundTransferStatus = "SUCCESS"
-	ft.BeforeBalance = senderBefore
-	ft.AfterBalance = senderAfter
 	if err = insertFundTransferTx(tx, ft); err != nil {
 		return err
 	}
 
 	refID := fmt.Sprintf("%d", ft.FundTransferID)
-	debitAmt := ft.Amount
-	creditAmt := ft.Amount
 
-	// 4. Wallet transaction for sender (debit)
-	if err = fs.walletStore.CreateWalletTransactionTx(tx, &models.WalletTransactionModel{
+	// 2. Debit sender — atomically checks balance, also creates wallet transaction entry
+	if err = debitTx(tx, transaction{
 		UserID: ft.FundTransfererID, ReferenceID: refID,
-		DebitAmount: &debitAmt, BeforeBalance: senderBefore, AfterBalance: senderAfter,
-		TransactionReason: "FUND_TRANSFER", Remarks: ft.Remarks,
-	}); err != nil {
+		Amount: ft.Amount, Reason: "FUND_TRANSFER", Remarks: ft.Remarks,
+		userTableInfo: *senderInfo,
+	}, fs.walletStore); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return checkExistsTx(tx, senderInfo.TableName, senderInfo.IDColumnName, ft.FundTransfererID, "sender")
+		}
 		return err
 	}
 
-	// 5. Wallet transaction for receiver (credit)
-	if err = fs.walletStore.CreateWalletTransactionTx(tx, &models.WalletTransactionModel{
+	// 3. Credit receiver — also creates wallet transaction entry
+	if err = creditTx(tx, transaction{
 		UserID: ft.FundReceiverID, ReferenceID: refID,
-		CreditAmount: &creditAmt, BeforeBalance: receiverBefore, AfterBalance: receiverAfter,
-		TransactionReason: "FUND_TRANSFER", Remarks: ft.Remarks,
-	}); err != nil {
+		Amount: ft.Amount, Reason: "FUND_TRANSFER", Remarks: ft.Remarks,
+		userTableInfo: *receiverInfo,
+	}, fs.walletStore); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return errors.New("receiver not found")
+		}
 		return err
 	}
 

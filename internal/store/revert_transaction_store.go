@@ -33,34 +33,16 @@ func (rs *PostgresRevertTransactionStore) CreateRevertTransaction(rt *models.Rev
 	}
 	defer tx.Rollback()
 
-	revertOnWallet, err := walletInfoFromID(rt.RevertOnID)
+	revertOnInfo, err := getUserTableInfo(rt.RevertOnID)
 	if err != nil {
 		return err
 	}
-	revertByWallet, err := walletInfoFromID(rt.RevertByID)
+	revertByInfo, err := getUserTableInfo(rt.RevertByID)
 	if err != nil {
 		return err
 	}
 
-	// Debit revert_on — fails atomically if balance insufficient or user not found
-	revertOnBefore, revertOnAfter, err := debitTx(tx, revertOnWallet.table, revertOnWallet.idCol, revertOnWallet.balanceCol, rt.RevertOnID, rt.Amount)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return checkExistsTx(tx, revertOnWallet.table, revertOnWallet.idCol, rt.RevertOnID, "revert_on user")
-		}
-		return err
-	}
-
-	// Credit revert_by
-	revertByBefore, revertByAfter, err := creditTx(tx, revertByWallet.table, revertByWallet.idCol, revertByWallet.balanceCol, rt.RevertByID, rt.Amount)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return errors.New("revert_by user not found")
-		}
-		return err
-	}
-
-	// Insert revert transaction record
+	// Insert revert transaction record first to get reference ID for wallet entries
 	err = tx.QueryRow(`
 		INSERT INTO revert_transactions (revert_by_id, revert_on_id, amount, revert_status, remarks)
 		VALUES ($1, $2, $3, 'SUCCESS', $4)
@@ -75,23 +57,27 @@ func (rs *PostgresRevertTransactionStore) CreateRevertTransaction(rt *models.Rev
 	refID := fmt.Sprintf("%d", rt.RevertTransactionID)
 	remarks := fmt.Sprintf("Revert transaction: %s", rt.Remarks)
 
-	// Wallet tx for revert_on (debit)
-	debitAmt := rt.Amount
-	if err = rs.walletStore.CreateWalletTransactionTx(tx, &models.WalletTransactionModel{
+	// Debit revert_on — atomically checks balance, also creates wallet transaction entry
+	if err = debitTx(tx, transaction{
 		UserID: rt.RevertOnID, ReferenceID: refID,
-		DebitAmount: &debitAmt, BeforeBalance: revertOnBefore, AfterBalance: revertOnAfter,
-		TransactionReason: "REVERT", Remarks: remarks,
-	}); err != nil {
+		Amount: rt.Amount, Reason: "REVERT", Remarks: remarks,
+		userTableInfo: *revertOnInfo,
+	}, rs.walletStore); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return checkExistsTx(tx, revertOnInfo.TableName, revertOnInfo.IDColumnName, rt.RevertOnID, "revert_on user")
+		}
 		return err
 	}
 
-	// Wallet tx for revert_by (credit)
-	creditAmt := rt.Amount
-	if err = rs.walletStore.CreateWalletTransactionTx(tx, &models.WalletTransactionModel{
+	// Credit revert_by — also creates wallet transaction entry
+	if err = creditTx(tx, transaction{
 		UserID: rt.RevertByID, ReferenceID: refID,
-		CreditAmount: &creditAmt, BeforeBalance: revertByBefore, AfterBalance: revertByAfter,
-		TransactionReason: "REVERT", Remarks: remarks,
-	}); err != nil {
+		Amount: rt.Amount, Reason: "REVERT", Remarks: remarks,
+		userTableInfo: *revertByInfo,
+	}, rs.walletStore); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return errors.New("revert_by user not found")
+		}
 		return err
 	}
 

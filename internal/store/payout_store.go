@@ -29,6 +29,7 @@ func NewPostgresPayoutTransactionStore(db *sql.DB, commisionStore CommisionStore
 type PayoutTransactionStore interface {
 	InitializePayoutTransaction(pt *models.PayoutTransactionModel) error
 	FinalizePayout(payoutTransactionID, orderID, operatorTransactionID, status string) error
+	GetPayoutTransactionByID(payoutTransactionID string) (*models.PayoutTransactionModel, error)
 	GetAllPayoutTransactions(p utils.QueryParams) ([]models.PayoutTransactionModel, error)
 	GetPayoutTransactionsByRetailerID(retailerID string, p utils.QueryParams) ([]models.PayoutTransactionModel, error)
 	GetPayoutTransactionsByDistributorID(distributorID string, p utils.QueryParams) ([]models.PayoutTransactionModel, error)
@@ -77,32 +78,19 @@ func (ps *PostgresPayoutTransactionStore) InitializePayoutTransaction(pt *models
 		return errors.New("transaction limit exceded")
 	}
 
-	tx, err := ps.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	retailerWallet, err := walletInfoFromID(pt.RetailerID)
-	if err != nil {
-		return err
-	}
-	retailerBefore, retailerAfter, err := debitTx(tx, retailerWallet.table, retailerWallet.idCol, retailerWallet.balanceCol, pt.RetailerID, totalDeduction)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return checkExistsTx(tx, retailerWallet.table, retailerWallet.idCol, pt.RetailerID, "retailer")
-		}
-		return err
-	}
-
-	// 5. Credit commission wallets (skip zero-value commissions)
 	pt.PartnerRequestID = uuid.New().String()
 	pt.AdminCommision = commision.AdminCommision
 	pt.MasterDistributorCommision = commision.MasterDistributorCommision
 	pt.DistributorCommision = commision.DistributorCommision
 	pt.RetailerCommision = commision.RetailerCommision
 
-	// 6. Insert payout record to get the ID used as reference in wallet transactions
+	tx, err := ps.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Insert payout record first to get the reference ID for wallet entries
 	const insertQ = `
 	INSERT INTO payout_transactions (
 		partner_request_id, operator_transaction_id, retailer_id,
@@ -121,14 +109,13 @@ func (ps *PostgresPayoutTransactionStore) InitializePayoutTransaction(pt *models
 	)
 	RETURNING payout_transaction_id, payout_transaction_status, created_at, updated_at;
 	`
-	err = tx.QueryRow(insertQ,
+	if err = tx.QueryRow(insertQ,
 		pt.PartnerRequestID, pt.RetailerID,
 		pt.MobileNumber, pt.BankName, pt.BeneficiaryName,
 		pt.AccountNumber, pt.IFSCCode, pt.Amount, pt.TransferType,
 		pt.AdminCommision, pt.MasterDistributorCommision,
 		pt.DistributorCommision, pt.RetailerCommision,
-	).Scan(&pt.PayoutTransactionID, &pt.PayoutTransactionStatus, &pt.CreatedAT, &pt.UpdatedAT)
-	if err != nil {
+	).Scan(&pt.PayoutTransactionID, &pt.PayoutTransactionStatus, &pt.CreatedAT, &pt.UpdatedAT); err != nil {
 		return err
 	}
 
@@ -136,34 +123,65 @@ func (ps *PostgresPayoutTransactionStore) InitializePayoutTransaction(pt *models
 	payoutRemarks := fmt.Sprintf("Payout to %s | Account: %s | Amount: %.2f", pt.BeneficiaryName, pt.AccountNumber, pt.Amount)
 	commisionRemarks := fmt.Sprintf("Payout commission | Ref: %s", refID)
 
-	// 7. Wallet transaction: retailer debit
-	if err = ps.walletStore.CreateWalletTransactionTx(tx, &models.WalletTransactionModel{
+	retailerInfo, err := getUserTableInfo(pt.RetailerID)
+	if err != nil {
+		return err
+	}
+
+	// Debit retailer — atomically checks balance, also creates wallet transaction entry
+	if err = debitTx(tx, transaction{
 		UserID: pt.RetailerID, ReferenceID: refID,
-		DebitAmount: &totalDeduction, BeforeBalance: retailerBefore, AfterBalance: retailerAfter,
-		TransactionReason: "PAYOUT", Remarks: payoutRemarks,
-	}); err != nil {
+		Amount: totalDeduction, Reason: "PAYOUT", Remarks: payoutRemarks,
+		userTableInfo: *retailerInfo,
+	}, ps.walletStore); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return checkExistsTx(tx, retailerInfo.TableName, retailerInfo.IDColumnName, pt.RetailerID, "retailer")
+		}
 		return err
 	}
 
-	// 8. Commission credits: admin, md, distributor, retailer
-	if err = ps.creditIfNonZero(tx, rc.adminID, refID, commisionRemarks, pt.AdminCommision); err != nil {
-		return err
-	}
-	if err = ps.creditIfNonZero(tx, rc.mdID, refID, commisionRemarks, pt.MasterDistributorCommision); err != nil {
-		return err
-	}
-	if err = ps.creditIfNonZero(tx, rc.distributorID, refID, commisionRemarks, pt.DistributorCommision); err != nil {
-		return err
-	}
-	if err = ps.creditIfNonZero(tx, pt.RetailerID, refID, commisionRemarks, pt.RetailerCommision); err != nil {
-		return err
+	// Credit commission wallets — skip zero amounts to avoid empty wallet entries
+	creditCommision := func(userID string, amount float64) error {
+		if amount <= 0 {
+			return nil
+		}
+		info, err := getUserTableInfo(userID)
+		if err != nil {
+			return err
+		}
+		return creditTx(tx, transaction{
+			UserID: userID, ReferenceID: refID,
+			Amount: amount, Reason: "PAYOUT", Remarks: commisionRemarks,
+			userTableInfo: *info,
+		}, ps.walletStore)
 	}
 
-	// Populate before/after on the response model from the retailer debit
-	pt.BeforeBalance = retailerBefore
-	pt.AfterBalance = retailerAfter
+	if err = creditCommision(rc.adminID, pt.AdminCommision); err != nil {
+		return err
+	}
+	if err = creditCommision(rc.mdID, pt.MasterDistributorCommision); err != nil {
+		return err
+	}
+	if err = creditCommision(rc.distributorID, pt.DistributorCommision); err != nil {
+		return err
+	}
+	if err = creditCommision(pt.RetailerID, pt.RetailerCommision); err != nil {
+		return err
+	}
 
 	return tx.Commit()
+}
+
+func (ps *PostgresPayoutTransactionStore) GetPayoutTransactionByID(payoutTransactionID string) (*models.PayoutTransactionModel, error) {
+	q := payoutSelectBase + `WHERE pt.payout_transaction_id = $1::UUID;`
+	results, err := scanPayoutTransactions(ps.db, q, payoutTransactionID)
+	if err != nil {
+		return nil, err
+	}
+	if len(results) == 0 {
+		return nil, errors.New("payout transaction not found")
+	}
+	return &results[0], nil
 }
 
 func (ps *PostgresPayoutTransactionStore) FinalizePayout(payoutTransactionID, orderID, operatorTransactionID, status string) error {
