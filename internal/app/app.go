@@ -25,9 +25,9 @@ type Application struct {
 	CommisionHandler         *handlers.CommisionHandler
 	TransactionLimitHandler  *handlers.TransactionLimitHandler
 	TicketHandler            *handlers.TicketHandler
-	BeneficiaryHandler            *handlers.BeneficiaryHandler
-	PayoutHandler                 *handlers.PayoutHandler
-	RevertTransactionHandler      *handlers.RevertTransactionHandler
+	BeneficiaryHandler       *handlers.BeneficiaryHandler
+	RevertTransactionHandler *handlers.RevertTransactionHandler
+	PayoutHandler            *handlers.PayoutHandler
 }
 
 func NewApplication() (*Application, error) {
@@ -56,8 +56,8 @@ func NewApplication() (*Application, error) {
 	transactionLimitStore := store.NewPostgresTransactionLimitStore(pgdb)
 	ticketStore := store.NewPostgresTicketStore(pgdb)
 	beneficiaryStore := store.NewPostgresBeneficiaryStore(pgdb)
-	payoutStore := store.NewPostgresPayoutStore(pgdb, walletTransactionStore)
 	revertTransactionStore := store.NewPostgresRevertTransactionStore(pgdb, walletTransactionStore)
+	payoutTransactionStore := store.NewPostgresPayoutTransactionStore(pgdb, commisionStore, walletTransactionStore)
 
 	// Handlers
 	adminHandler := handlers.NewAdminHandler(adminStore, walletTransactionStore, logger)
@@ -72,8 +72,8 @@ func NewApplication() (*Application, error) {
 	transactionLimitHandler := handlers.NewTransactionLimitHandler(transactionLimitStore, logger)
 	ticketHandler := handlers.NewTicketHandler(ticketStore, logger)
 	beneficiaryHandler := handlers.NewBeneficiaryHandler(beneficiaryStore, logger)
-	payoutHandler := handlers.NewPayoutHandler(payoutStore, logger)
 	revertTransactionHandler := handlers.NewRevertTransactionHandler(revertTransactionStore, logger)
+	payoutHandler := handlers.NewPayoutHandler(payoutTransactionStore, logger)
 
 	return &Application{
 		Logger:                   logger,
@@ -89,8 +89,8 @@ func NewApplication() (*Application, error) {
 		CommisionHandler:         commisionHandler,
 		TransactionLimitHandler:  transactionLimitHandler,
 		TicketHandler:            ticketHandler,
-		BeneficiaryHandler:            beneficiaryHandler,
-		PayoutHandler:                 payoutHandler,
-		RevertTransactionHandler:      revertTransactionHandler,
+		BeneficiaryHandler:       beneficiaryHandler,
+		RevertTransactionHandler: revertTransactionHandler,
+		PayoutHandler:            payoutHandler,
 	}, nil
 }

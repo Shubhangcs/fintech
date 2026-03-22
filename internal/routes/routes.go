@@ -27,8 +27,8 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 	transactionLimitRoutes(router, app)
 	ticketRoutes(router, app)
 	beneficiaryRoutes(router, app)
-	payoutRoutes(router, app)
 	revertTransactionRoutes(router, app)
+	payoutRoutes(router, app)
 
 	return router
 }
@@ -157,18 +157,6 @@ func fundTransferRoutes(router *chi.Mux, app *app.Application) {
 	})
 }
 
-func payoutRoutes(router *chi.Mux, app *app.Application) {
-	router.Route("/payout", func(r chi.Router) {
-		r.Use(middlewares.AuthorizationMiddleware)
-
-		r.Post("/create", app.PayoutHandler.HandleCreatePayoutTransaction)
-		r.Get("/all", app.PayoutHandler.HandleGetAllPayoutTransactions)
-		r.Get("/retailer/{id}", app.PayoutHandler.HandleGetPayoutTransactionsByRetailerID)
-		r.Post("/refund/{id}", app.PayoutHandler.HandlePayoutRefund)
-		r.Put("/update/{id}", app.PayoutHandler.HandleUpdatePayoutTransaction)
-	})
-}
-
 func beneficiaryRoutes(router *chi.Mux, app *app.Application) {
 	router.Route("/beneficiary", func(r chi.Router) {
 		r.Use(middlewares.AuthorizationMiddleware)
@@ -268,5 +256,18 @@ func fundRequestRoutes(router *chi.Mux, app *app.Application) {
 		r.Get("/requester/{id}", app.FundRequestHandler.HandleGetFundRequestsByRequesterID)
 		r.Get("/request-to/{id}", app.FundRequestHandler.HandleGetFundRequestsByRequestToID)
 		r.Get("/all", app.FundRequestHandler.HandleGetAllFundRequests)
+	})
+}
+
+func payoutRoutes(router *chi.Mux, app *app.Application) {
+	router.Route("/payout", func(r chi.Router) {
+		r.Use(middlewares.AuthorizationMiddleware)
+
+		r.Post("/create", app.PayoutHandler.HandleCreatePayoutTransaction)
+		r.Put("/update/{id}", app.PayoutHandler.HandleUpdatePayoutTransaction)
+		r.Get("/all", app.PayoutHandler.HandleGetAllPayoutTransactions)
+		r.Get("/retailer/{id}", app.PayoutHandler.HandleGetPayoutTransactionsByRetailerID)
+		r.Get("/distributor/{id}", app.PayoutHandler.HandleGetPayoutTransactionsByDistributorID)
+		r.Get("/md/{id}", app.PayoutHandler.HandleGetPayoutTransactionsByMasterDistributorID)
 	})
 }

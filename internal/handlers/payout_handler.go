@@ -1,197 +1,159 @@
 package handlers
 
 import (
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 	"github.com/levionstudio/fintech/internal/models"
 	"github.com/levionstudio/fintech/internal/store"
 	"github.com/levionstudio/fintech/internal/utils"
 )
 
-const paysprintPayoutPath = "/api/v1/payout/transfer"
-
-// paysprintPayoutResponse is the response from Paysprint's payout API.
-type paysprintPayoutResponse struct {
-	Status       bool   `json:"status"`
-	ResponseCode int    `json:"response_code"`
-	Message      string `json:"message"`
-	TxnID        string `json:"txnid"`
-	OrderID      string `json:"orderid"`
-	UTR          string `json:"utr"`
-}
-
 type PayoutHandler struct {
-	payoutStore store.PayoutStore
+	payoutStore store.PayoutTransactionStore
 	logger      *slog.Logger
 }
 
-func NewPayoutHandler(payoutStore store.PayoutStore, logger *slog.Logger) *PayoutHandler {
+func NewPayoutHandler(payoutStore store.PayoutTransactionStore, logger *slog.Logger) *PayoutHandler {
 	return &PayoutHandler{payoutStore: payoutStore, logger: logger}
 }
 
+func mapAPIStatus(status int) string {
+	switch status {
+	case 1:
+		return "SUCCESS"
+	case 2:
+		return "PENDING"
+	default:
+		return "FAILED"
+	}
+}
+
 func (ph *PayoutHandler) HandleCreatePayoutTransaction(w http.ResponseWriter, r *http.Request) {
-	var req models.CreatePayoutRequest
+	var req models.PayoutTransactionModel
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.BadRequest(w, ph.logger, "create payout", err)
-		return
-	}
-	if err := req.Validate(); err != nil {
-		utils.BadRequest(w, ph.logger, "create payout", err)
+		utils.BadRequest(w, ph.logger, "create payout transaction", err)
 		return
 	}
 
-	// Look up commision before initiating — so we know the total cost upfront
-	commision, err := ph.payoutStore.GetPayoutCommision(req.RetailerID, req.Amount)
-	if err != nil {
-		utils.ServerError(w, ph.logger, "create payout: get commision", err)
+	if err := req.ValidateInitilizePayout(); err != nil {
+		utils.BadRequest(w, ph.logger, "create payout transaction", err)
 		return
 	}
 
-	// Phase 1: debit retailer + write PENDING record atomically
-	reqID := uuid.NewString()
-	transactionID, err := ph.payoutStore.InitiatePayoutTransaction(&req, reqID, commision)
-	if err != nil {
-		utils.BadRequest(w, ph.logger, "create payout: initiate", err)
+	if len(req.RetailerID) == 0 || string(req.RetailerID[0]) != "R" {
+		utils.BadRequest(w, ph.logger, "create payout transaction", errors.New("retailer_id must belong to a retailer"))
 		return
 	}
 
-	// Phase 2: call Paysprint API (PENDING record already committed)
-	token, err := utils.GeneratePaysprintToken(reqID)
-	if err != nil {
-		// API token generation failed — record stays PENDING for manual recovery
-		ph.logger.Error("create payout: generate token", "error", err, "transaction_id", transactionID)
-		utils.WriteJSON(w, http.StatusAccepted, utils.Envelope{
-			"message":        "payout is pending",
-			"transaction_id": transactionID,
-		})
-		return
-	}
-
-	var apiResp paysprintPayoutResponse
-	err = utils.PostRequest(utils.PaysprintAPI+paysprintPayoutPath, "Token", token, map[string]any{
-		"refid":        reqID,
-		"mobile":       req.MobileNumber,
-		"bankname":     req.BankName,
-		"bene_name":    req.BeneficiaryName,
-		"accno":        req.AccountNumber,
-		"ifsccode":     req.IFSCCode,
-		"amount":       req.Amount,
-		"transfertype": req.TransferType,
-	}, &apiResp)
-	if err != nil {
-		// Network/decode error — record stays PENDING for manual recovery
-		ph.logger.Error("create payout: paysprint call", "error", err, "transaction_id", transactionID)
-		utils.WriteJSON(w, http.StatusAccepted, utils.Envelope{
-			"message":        "payout is pending",
-			"transaction_id": transactionID,
-		})
-		return
-	}
-
-	// Determine outcome from API response
-	// response_code 1 = success, 2 = pending, others = failure
-	switch apiResp.ResponseCode {
-	case 1: // SUCCESS
-		if finalErr := ph.payoutStore.FinalizePayoutTransaction(transactionID, apiResp.OrderID, apiResp.TxnID, "SUCCESS", commision, req.RetailerID); finalErr != nil {
-			ph.logger.Error("create payout: finalize success", "error", finalErr, "transaction_id", transactionID)
-		}
-		utils.WriteJSON(w, http.StatusOK, utils.Envelope{
-			"message":        "payout successful",
-			"transaction_id": transactionID,
-			"utr":            apiResp.UTR,
-		})
-
-	case 2: // PENDING
-		if finalErr := ph.payoutStore.FinalizePayoutTransaction(transactionID, apiResp.OrderID, apiResp.TxnID, "PENDING", commision, req.RetailerID); finalErr != nil {
-			ph.logger.Error("create payout: finalize pending", "error", finalErr, "transaction_id", transactionID)
-		}
-		utils.WriteJSON(w, http.StatusAccepted, utils.Envelope{
-			"message":        "payout is pending",
-			"transaction_id": transactionID,
-		})
-
-	default: // FAILED
-		if failErr := ph.payoutStore.FailPayoutTransaction(transactionID, apiResp.OrderID, apiResp.TxnID); failErr != nil {
-			ph.logger.Error("create payout: fail transaction", "error", failErr, "transaction_id", transactionID)
-		}
-		utils.WriteJSON(w, http.StatusUnprocessableEntity, utils.Envelope{
-			"message":        apiResp.Message,
-			"transaction_id": transactionID,
-		})
-	}
-}
-
-func (ph *PayoutHandler) HandleGetAllPayoutTransactions(w http.ResponseWriter, r *http.Request) {
-	p := utils.ReadPaginationParams(r)
-
-	transactions, err := ph.payoutStore.GetAllPayoutTransactions(p.Limit, p.Offset)
-	if err != nil {
-		utils.ServerError(w, ph.logger, "get all payout transactions", err)
-		return
-	}
-
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "payout transactions fetched successfully", "payout_transactions": transactions})
-}
-
-func (ph *PayoutHandler) HandleGetPayoutTransactionsByRetailerID(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	if id == "" {
-		utils.BadRequest(w, ph.logger, "get payout transactions by retailer", errors.New("id is required"))
-		return
-	}
-
-	p := utils.ReadPaginationParams(r)
-
-	transactions, err := ph.payoutStore.GetPayoutTransactionsByRetailerID(id, p.Limit, p.Offset)
-	if err != nil {
-		utils.ServerError(w, ph.logger, "get payout transactions by retailer", err)
-		return
-	}
-
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "payout transactions fetched successfully", "payout_transactions": transactions})
-}
-
-func (ph *PayoutHandler) HandlePayoutRefund(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	if id == "" {
-		utils.BadRequest(w, ph.logger, "payout refund", errors.New("id is required"))
-		return
-	}
-
-	if err := ph.payoutStore.PayoutRefund(id); err != nil {
-		if errors.Is(err, sql.ErrNoRows) || err.Error() == "transaction not found" || err.Error() == "only successful transactions can be refunded" {
-			utils.BadRequest(w, ph.logger, "payout refund", err)
+	if err := ph.payoutStore.InitializePayoutTransaction(&req); err != nil {
+		if isPayoutClientErr(err) {
+			utils.BadRequest(w, ph.logger, "create payout transaction", err)
 			return
 		}
-		utils.ServerError(w, ph.logger, "payout refund", err)
+		utils.ServerError(w, ph.logger, "create payout transaction", err)
 		return
 	}
 
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "payout refunded successfully"})
+	// Hit the external payout API and auto-finalize based on the response.
+	apiResp, finalStatus, orderID, operatorTxnID := callPayoutAPI(ph.logger, &req)
+
+	if err := ph.payoutStore.FinalizePayout(req.PayoutTransactionID, orderID, operatorTxnID, finalStatus); err != nil {
+		utils.ServerError(w, ph.logger, "finalize payout transaction", err)
+		return
+	}
+
+	req.PayoutTransactionStatus = finalStatus
+	req.OrderID = orderID
+	req.OperatorTransactionID = operatorTxnID
+
+	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{
+		"message":            "payout transaction processed",
+		"payout_transaction": req,
+		"api_response":       apiResp,
+	})
 }
 
-func (ph *PayoutHandler) HandleUpdatePayoutTransaction(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	if id == "" {
-		utils.BadRequest(w, ph.logger, "update payout transaction", errors.New("id is required"))
+// callPayoutAPI sends the payout request to the external API and returns the response
+// plus the resolved finalStatus, orderID, and operatorTxnID ready to pass to FinalizePayout.
+//
+// Status resolution:
+//   - Network / parse failure         → FAILED, empty IDs
+//   - API error (error != 0)          → FAILED, IDs from response (may be empty)
+//   - API status 1                    → SUCCESS
+//   - API status 2                    → PENDING
+//   - API status 3 (or anything else) → FAILED
+func callPayoutAPI(logger *slog.Logger, pt *models.PayoutTransactionModel) (resp *apiPayoutResponse, finalStatus, orderID, operatorTxnID string) {
+	finalStatus = "FAILED"
+
+	if utils.RechargeKitAPI1 == "" || utils.RechargeKitAPIToken == "" {
+		logger.Error("payout api not configured", "payout_transaction_id", pt.PayoutTransactionID)
 		return
 	}
 
-	var req models.UpdatePayoutTransactionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	var apiResp apiPayoutResponse
+	err := utils.PostRequest(
+		utils.RechargeKitAPI2+utils.Payout,
+		"Authorization",
+		"Bearer "+utils.RechargeKitAPIToken,
+		map[string]any{
+			"mobile":       pt.MobileNumber,
+			"name":         pt.BeneficiaryName,
+			"account":      pt.AccountNumber,
+			"ifsc":         pt.IFSCCode,
+			"bankname":     pt.BankName,
+			"amount":       pt.Amount,
+			"txntype":      pt.TransferType,
+			"partnerreqid": pt.PartnerRequestID,
+		},
+		&apiResp,
+	)
+	if err != nil {
+		logger.Error("payout api call failed", "error", err, "payout_transaction_id", pt.PayoutTransactionID)
+		return
+	}
+
+	resp = &apiResp
+	orderID = apiResp.OrderID
+	operatorTxnID = apiResp.OperatorTransactionID
+
+	if apiResp.Error != 0 {
+		logger.Error("payout api error", "msg", apiResp.Message, "payout_transaction_id", pt.PayoutTransactionID)
+		return // finalStatus stays FAILED, but we captured the IDs
+	}
+
+	finalStatus = mapAPIStatus(apiResp.Status)
+	return
+}
+
+// HandleUpdatePayoutTransaction manually finalizes a payout — used for callbacks or
+// manual status corrections when the API response was not received.
+func (ph *PayoutHandler) HandleUpdatePayoutTransaction(w http.ResponseWriter, r *http.Request) {
+	payoutID, err := utils.ReadParamID(r)
+	if err != nil {
 		utils.BadRequest(w, ph.logger, "update payout transaction", err)
 		return
 	}
 
-	if err := ph.payoutStore.UpdatePayoutTransaction(id, &req); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			utils.BadRequest(w, ph.logger, "update payout transaction", errors.New("transaction not found"))
+	var body struct {
+		OrderID               string `json:"order_id"`
+		OperatorTransactionID string `json:"operator_transaction_id"`
+		Status                string `json:"payout_transaction_status"`
+	}
+	if err = json.NewDecoder(r.Body).Decode(&body); err != nil {
+		utils.BadRequest(w, ph.logger, "update payout transaction", err)
+		return
+	}
+	if body.Status == "" {
+		utils.BadRequest(w, ph.logger, "update payout transaction", errors.New("payout_transaction_status is required"))
+		return
+	}
+
+	if err = ph.payoutStore.FinalizePayout(payoutID, body.OrderID, body.OperatorTransactionID, body.Status); err != nil {
+		if isPayoutClientErr(err) {
+			utils.BadRequest(w, ph.logger, "update payout transaction", err)
 			return
 		}
 		utils.ServerError(w, ph.logger, "update payout transaction", err)
@@ -199,4 +161,67 @@ func (ph *PayoutHandler) HandleUpdatePayoutTransaction(w http.ResponseWriter, r 
 	}
 
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "payout transaction updated successfully"})
+}
+
+// --- GET handlers ---
+
+func (ph *PayoutHandler) HandleGetAllPayoutTransactions(w http.ResponseWriter, r *http.Request) {
+	results, err := ph.payoutStore.GetAllPayoutTransactions(utils.ReadQueryParams(r))
+	if err != nil {
+		utils.ServerError(w, ph.logger, "get all payout transactions", err)
+		return
+	}
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "payout transactions fetched successfully", "payout_transactions": results})
+}
+
+func (ph *PayoutHandler) HandleGetPayoutTransactionsByRetailerID(w http.ResponseWriter, r *http.Request) {
+	id, err := utils.ReadParamID(r)
+	if err != nil {
+		utils.BadRequest(w, ph.logger, "get payout transactions by retailer id", err)
+		return
+	}
+	results, err := ph.payoutStore.GetPayoutTransactionsByRetailerID(id, utils.ReadQueryParams(r))
+	if err != nil {
+		utils.ServerError(w, ph.logger, "get payout transactions by retailer id", err)
+		return
+	}
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "payout transactions fetched successfully", "payout_transactions": results})
+}
+
+func (ph *PayoutHandler) HandleGetPayoutTransactionsByDistributorID(w http.ResponseWriter, r *http.Request) {
+	id, err := utils.ReadParamID(r)
+	if err != nil {
+		utils.BadRequest(w, ph.logger, "get payout transactions by distributor id", err)
+		return
+	}
+	results, err := ph.payoutStore.GetPayoutTransactionsByDistributorID(id, utils.ReadQueryParams(r))
+	if err != nil {
+		utils.ServerError(w, ph.logger, "get payout transactions by distributor id", err)
+		return
+	}
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "payout transactions fetched successfully", "payout_transactions": results})
+}
+
+func (ph *PayoutHandler) HandleGetPayoutTransactionsByMasterDistributorID(w http.ResponseWriter, r *http.Request) {
+	id, err := utils.ReadParamID(r)
+	if err != nil {
+		utils.BadRequest(w, ph.logger, "get payout transactions by md id", err)
+		return
+	}
+	results, err := ph.payoutStore.GetPayoutTransactionsByMasterDistributorID(id, utils.ReadQueryParams(r))
+	if err != nil {
+		utils.ServerError(w, ph.logger, "get payout transactions by md id", err)
+		return
+	}
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "payout transactions fetched successfully", "payout_transactions": results})
+}
+
+func isPayoutClientErr(err error) bool {
+	msg := err.Error()
+	return msg == "retailer not found" ||
+		msg == "retailer KYC is not verified" ||
+		msg == "retailer is blocked" ||
+		msg == "insufficient wallet balance" ||
+		msg == "payout transaction not found or already finalized" ||
+		msg == "invalid payout_transaction_status"
 }
