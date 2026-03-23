@@ -93,7 +93,13 @@ func callPayoutAPI(logger *slog.Logger, pt *models.PayoutTransactionModel) (resp
 		return
 	}
 
+	var transactionType int
 	var apiResp models.PayoutAPIResponseModel
+	if pt.TransferType == "IMPS" {
+		transactionType = 5
+	} else {
+		transactionType = 6
+	}
 	err := utils.PostRequest(
 		utils.RechargeKitAPI2+utils.Payout,
 		"Authorization",
@@ -105,7 +111,7 @@ func callPayoutAPI(logger *slog.Logger, pt *models.PayoutTransactionModel) (resp
 			"ifsc":         pt.IFSCCode,
 			"bankname":     pt.BankName,
 			"amount":       pt.Amount,
-			"txntype":      pt.TransferType,
+			"txntype":      transactionType,
 			"partnerreqid": pt.PartnerRequestID,
 		},
 		&apiResp,
@@ -229,6 +235,27 @@ func callPayoutStatusAPI(logger *slog.Logger, partnerRequestID, payoutTransactio
 	return
 }
 
+// HandleRefundPayout reverses a FAILED payout: deducts commissions from each
+// recipient wallet and credits the full amount back to the retailer.
+func (ph *PayoutHandler) HandleRefundPayout(w http.ResponseWriter, r *http.Request) {
+	payoutID, err := utils.ReadParamID(r)
+	if err != nil {
+		utils.BadRequest(w, ph.logger, "refund payout", err)
+		return
+	}
+
+	if err = ph.payoutStore.RefundPayout(payoutID); err != nil {
+		if isPayoutClientErr(err) {
+			utils.BadRequest(w, ph.logger, "refund payout", err)
+			return
+		}
+		utils.ServerError(w, ph.logger, "refund payout", err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "payout refunded successfully"})
+}
+
 // HandleUpdatePayoutTransaction manually finalizes a payout — used for callbacks or
 // manual status corrections when the API response was not received.
 func (ph *PayoutHandler) HandleUpdatePayoutTransaction(w http.ResponseWriter, r *http.Request) {
@@ -323,5 +350,7 @@ func isPayoutClientErr(err error) bool {
 		msg == "insufficient wallet balance" ||
 		msg == "transaction limit exceded" ||
 		msg == "payout transaction not found or already finalized" ||
+		msg == "payout transaction not found or already refunded" ||
+		msg == "only FAILED payout transactions can be refunded" ||
 		msg == "invalid payout_transaction_status"
 }

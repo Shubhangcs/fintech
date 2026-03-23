@@ -265,6 +265,7 @@ func payoutRoutes(router *chi.Mux, app *app.Application) {
 
 		r.Post("/create", app.PayoutHandler.HandleCreatePayoutTransaction)
 		r.Post("/status-check/{id}", app.PayoutHandler.HandleCheckPayoutStatus)
+		r.Post("/refund/{id}", app.PayoutHandler.HandleRefundPayout)
 		r.Put("/update/{id}", app.PayoutHandler.HandleUpdatePayoutTransaction)
 		r.Get("/all", app.PayoutHandler.HandleGetAllPayoutTransactions)
 		r.Get("/retailer/{id}", app.PayoutHandler.HandleGetPayoutTransactionsByRetailerID)

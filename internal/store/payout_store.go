@@ -29,6 +29,7 @@ func NewPostgresPayoutTransactionStore(db *sql.DB, commisionStore CommisionStore
 type PayoutTransactionStore interface {
 	InitializePayoutTransaction(pt *models.PayoutTransactionModel) error
 	FinalizePayout(payoutTransactionID, orderID, operatorTransactionID, status string) error
+	RefundPayout(payoutTransactionID string) error
 	GetPayoutTransactionByID(payoutTransactionID string) (*models.PayoutTransactionModel, error)
 	GetAllPayoutTransactions(p utils.QueryParams) ([]models.PayoutTransactionModel, error)
 	GetPayoutTransactionsByRetailerID(retailerID string, p utils.QueryParams) ([]models.PayoutTransactionModel, error)
@@ -208,6 +209,97 @@ func (ps *PostgresPayoutTransactionStore) FinalizePayout(payoutTransactionID, or
 		return errors.New("payout transaction not found or already finalized")
 	}
 	return nil
+}
+
+// RefundPayout reverses a FAILED payout: deducts commissions from each recipient
+// and credits the full amount (payout + all commissions) back to the retailer.
+// Uses AND payout_transaction_status = 'FAILED' guard to prevent double-refund.
+func (ps *PostgresPayoutTransactionStore) RefundPayout(payoutTransactionID string) error {
+	pt, err := ps.GetPayoutTransactionByID(payoutTransactionID)
+	if err != nil {
+		return err
+	}
+
+	if pt.PayoutTransactionStatus != "FAILED" {
+		return errors.New("only FAILED payout transactions can be refunded")
+	}
+
+	rc, err := getRetailerDetails(ps.db, pt.RetailerID)
+	if err != nil {
+		return err
+	}
+
+	tx, err := ps.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Atomically mark as REFUND — prevents concurrent double-refund
+	res, err := tx.Exec(`
+		UPDATE payout_transactions
+		SET payout_transaction_status = 'REFUND', updated_at = CURRENT_TIMESTAMP
+		WHERE payout_transaction_id = $1 AND payout_transaction_status = 'FAILED'
+	`, payoutTransactionID)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return errors.New("payout transaction not found or already refunded")
+	}
+
+	refID := payoutTransactionID
+	commisionRemarks := fmt.Sprintf("Payout refund commission recovery | Ref: %s", refID)
+	retailerRemarks := fmt.Sprintf("Payout refund | Ref: %s", refID)
+
+	// Debit commissions back from each recipient
+	debitCommision := func(userID string, amount float64) error {
+		if amount <= 0 {
+			return nil
+		}
+		info, err := getUserTableInfo(userID)
+		if err != nil {
+			return err
+		}
+		return debitTx(tx, transaction{
+			UserID: userID, ReferenceID: refID,
+			Amount: amount, Reason: "PAYOUT_REFUND", Remarks: commisionRemarks,
+			userTableInfo: *info,
+		}, ps.walletStore)
+	}
+
+	if err = debitCommision(rc.adminID, pt.AdminCommision); err != nil {
+		return err
+	}
+	if err = debitCommision(rc.mdID, pt.MasterDistributorCommision); err != nil {
+		return err
+	}
+	if err = debitCommision(rc.distributorID, pt.DistributorCommision); err != nil {
+		return err
+	}
+	if err = debitCommision(pt.RetailerID, pt.RetailerCommision); err != nil {
+		return err
+	}
+
+	// Credit full amount + all commissions back to retailer
+	totalRefund := pt.Amount + pt.AdminCommision + pt.MasterDistributorCommision + pt.DistributorCommision + pt.RetailerCommision
+	retailerInfo, err := getUserTableInfo(pt.RetailerID)
+	if err != nil {
+		return err
+	}
+	if err = creditTx(tx, transaction{
+		UserID: pt.RetailerID, ReferenceID: refID,
+		Amount: totalRefund, Reason: "PAYOUT_REFUND", Remarks: retailerRemarks,
+		userTableInfo: *retailerInfo,
+	}, ps.walletStore); err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 const payoutSelectBase = `
