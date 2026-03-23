@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -126,6 +127,8 @@ func callPayoutAPI(logger *slog.Logger, pt *models.PayoutTransactionModel) (resp
 	resp = &apiResp
 	orderID = apiResp.OrderID
 	operatorTxnID = apiResp.OperatorTransactionID
+
+	fmt.Println(apiResp)
 
 	if apiResp.Error != 0 {
 		logger.Error("payout api error", "msg", apiResp.Message, "payout_transaction_id", pt.PayoutTransactionID)
