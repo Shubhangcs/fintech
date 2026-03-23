@@ -26,6 +26,8 @@ func mapAPIStatus(status int) string {
 		return "SUCCESS"
 	case 2:
 		return "PENDING"
+	case 3:
+		return "FAILED"
 	default:
 		return "FAILED"
 	}
@@ -86,7 +88,7 @@ func (ph *PayoutHandler) HandleCreatePayoutTransaction(w http.ResponseWriter, r 
 //   - API status 2                    → PENDING
 //   - API status 3 (or anything else) → FAILED
 func callPayoutAPI(logger *slog.Logger, pt *models.PayoutTransactionModel) (resp *models.PayoutAPIResponseModel, finalStatus, orderID, operatorTxnID string) {
-	finalStatus = "FAILED"
+	finalStatus = "PENDING"
 
 	if utils.RechargeKitAPI2 == "" || utils.RechargeKitAPIToken == "" {
 		logger.Error("payout api not configured", "payout_transaction_id", pt.PayoutTransactionID)
