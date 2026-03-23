@@ -205,6 +205,8 @@ func callPayoutStatusAPI(logger *slog.Logger, partnerRequestID, payoutTransactio
 		return
 	}
 
+	fmt.Print(payoutTransactionID)
+
 	var apiResp models.PayoutAPIResponseModel
 	err := utils.PostRequest(
 		utils.RechargeKitAPI1+utils.PayoutStatus,
