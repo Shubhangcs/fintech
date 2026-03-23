@@ -46,8 +46,6 @@ type retailerChain struct {
 	balance       float64
 }
 
-
-
 func (ps *PostgresPayoutTransactionStore) InitializePayoutTransaction(pt *models.PayoutTransactionModel) error {
 	// Get Retailer Details
 	rc, err := getRetailerDetails(ps.db, pt.RetailerID)
@@ -174,7 +172,7 @@ func (ps *PostgresPayoutTransactionStore) InitializePayoutTransaction(pt *models
 }
 
 func (ps *PostgresPayoutTransactionStore) GetPayoutTransactionByID(payoutTransactionID string) (*models.PayoutTransactionModel, error) {
-	q := payoutSelectBase + `WHERE pt.payout_transaction_id = $1::UUID;`
+	q := payoutSelectBase + `WHERE pt.payout_transaction_id = $1;`
 	results, err := scanPayoutTransactions(ps.db, q, payoutTransactionID)
 	if err != nil {
 		return nil, err
