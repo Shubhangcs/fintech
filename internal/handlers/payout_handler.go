@@ -27,8 +27,6 @@ func mapAPIStatus(status int) string {
 		return "SUCCESS"
 	case 2:
 		return "PENDING"
-	case 3:
-		return "FAILED"
 	default:
 		return "FAILED"
 	}
@@ -79,17 +77,8 @@ func (ph *PayoutHandler) HandleCreatePayoutTransaction(w http.ResponseWriter, r 
 	})
 }
 
-// callPayoutAPI sends the payout request to the external API and returns the response
-// plus the resolved finalStatus, orderID, and operatorTxnID ready to pass to FinalizePayout.
-//
-// Status resolution:
-//   - Network / parse failure         → FAILED, empty IDs
-//   - API error (error != 0)          → FAILED, IDs from response (may be empty)
-//   - API status 1                    → SUCCESS
-//   - API status 2                    → PENDING
-//   - API status 3 (or anything else) → FAILED
 func callPayoutAPI(logger *slog.Logger, pt *models.PayoutTransactionModel) (resp *models.PayoutAPIResponseModel, finalStatus, orderID, operatorTxnID string) {
-	finalStatus = "PENDING"
+	finalStatus = "FAILED"
 
 	if utils.RechargeKitAPI2 == "" || utils.RechargeKitAPIToken == "" {
 		logger.Error("payout api not configured", "payout_transaction_id", pt.PayoutTransactionID)
@@ -132,16 +121,13 @@ func callPayoutAPI(logger *slog.Logger, pt *models.PayoutTransactionModel) (resp
 
 	if apiResp.Error != 0 {
 		logger.Error("payout api error", "msg", apiResp.Message, "payout_transaction_id", pt.PayoutTransactionID)
-		return // finalStatus stays FAILED, but we captured the IDs
+		return
 	}
 
 	finalStatus = mapAPIStatus(apiResp.Status)
 	return
 }
 
-// HandleCheckPayoutStatus fetches the current payout record, calls the operator status
-// check API using partner_request_id, and auto-finalizes based on the response.
-// Only PENDING transactions are re-checked; already finalized ones are returned as-is.
 func (ph *PayoutHandler) HandleCheckPayoutStatus(w http.ResponseWriter, r *http.Request) {
 	payoutID, err := utils.ReadParamID(r)
 	if err != nil {
@@ -168,7 +154,6 @@ func (ph *PayoutHandler) HandleCheckPayoutStatus(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// Call status check API with partner_request_id
 	apiResp, finalStatus, orderID, operatorTxnID := callPayoutStatusAPI(ph.logger, pt.PartnerRequestID, pt.PayoutTransactionID)
 
 	if err = ph.payoutStore.FinalizePayout(pt.PayoutTransactionID, orderID, operatorTxnID, finalStatus); err != nil {
@@ -187,16 +172,6 @@ func (ph *PayoutHandler) HandleCheckPayoutStatus(w http.ResponseWriter, r *http.
 	})
 }
 
-// callPayoutStatusAPI hits the operator status check endpoint and returns the resolved
-// finalStatus, orderID, and operatorTxnID.
-//
-// Status resolution:
-//   - Network / parse failure → PENDING (retry later)
-//   - API error (error != 0)  → PENDING (retry later)
-//   - status 1                → SUCCESS
-//   - status 2                → PENDING
-//   - status 3                → FAILED
-//   - others (hold)           → PENDING
 func callPayoutStatusAPI(logger *slog.Logger, partnerRequestID, payoutTransactionID string) (resp *models.PayoutAPIResponseModel, finalStatus, orderID, operatorTxnID string) {
 	finalStatus = "PENDING"
 
@@ -242,8 +217,6 @@ func callPayoutStatusAPI(logger *slog.Logger, partnerRequestID, payoutTransactio
 	return
 }
 
-// HandleRefundPayout reverses a FAILED payout: deducts commissions from each
-// recipient wallet and credits the full amount back to the retailer.
 func (ph *PayoutHandler) HandleRefundPayout(w http.ResponseWriter, r *http.Request) {
 	payoutID, err := utils.ReadParamID(r)
 	if err != nil {
@@ -263,8 +236,6 @@ func (ph *PayoutHandler) HandleRefundPayout(w http.ResponseWriter, r *http.Reque
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "payout refunded successfully"})
 }
 
-// HandleUpdatePayoutTransaction manually finalizes a payout — used for callbacks or
-// manual status corrections when the API response was not received.
 func (ph *PayoutHandler) HandleUpdatePayoutTransaction(w http.ResponseWriter, r *http.Request) {
 	payoutID, err := utils.ReadParamID(r)
 	if err != nil {

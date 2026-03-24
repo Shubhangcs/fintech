@@ -28,6 +28,7 @@ type Application struct {
 	BeneficiaryHandler       *handlers.BeneficiaryHandler
 	RevertTransactionHandler *handlers.RevertTransactionHandler
 	PayoutHandler            *handlers.PayoutHandler
+	MobileRechargeHandler    *handlers.MobileRechargeHandler
 }
 
 func NewApplication() (*Application, error) {
@@ -58,6 +59,7 @@ func NewApplication() (*Application, error) {
 	beneficiaryStore := store.NewPostgresBeneficiaryStore(pgdb)
 	revertTransactionStore := store.NewPostgresRevertTransactionStore(pgdb, walletTransactionStore)
 	payoutTransactionStore := store.NewPostgresPayoutTransactionStore(pgdb, commisionStore, walletTransactionStore, transactionLimitStore)
+	mobileRechargeStore := store.NewPostgresMobileRechargeStore(pgdb, walletTransactionStore)
 
 	// Handlers
 	adminHandler := handlers.NewAdminHandler(adminStore, walletTransactionStore, logger)
@@ -74,6 +76,7 @@ func NewApplication() (*Application, error) {
 	beneficiaryHandler := handlers.NewBeneficiaryHandler(beneficiaryStore, logger)
 	revertTransactionHandler := handlers.NewRevertTransactionHandler(revertTransactionStore, logger)
 	payoutHandler := handlers.NewPayoutHandler(payoutTransactionStore, logger)
+	mobileRechargeHandler := handlers.NewMobileRechargeHandler(mobileRechargeStore, logger)
 
 	return &Application{
 		Logger:                   logger,
@@ -92,5 +95,6 @@ func NewApplication() (*Application, error) {
 		BeneficiaryHandler:       beneficiaryHandler,
 		RevertTransactionHandler: revertTransactionHandler,
 		PayoutHandler:            payoutHandler,
+		MobileRechargeHandler:    mobileRechargeHandler,
 	}, nil
 }

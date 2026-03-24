@@ -47,7 +47,6 @@ type retailerChain struct {
 }
 
 func (ps *PostgresPayoutTransactionStore) InitializePayoutTransaction(pt *models.PayoutTransactionModel) error {
-	// Get Retailer Details
 	rc, err := getRetailerDetails(ps.db, pt.RetailerID)
 	if err != nil {
 		return err
@@ -60,7 +59,6 @@ func (ps *PostgresPayoutTransactionStore) InitializePayoutTransaction(pt *models
 		return errors.New("retailer is blocked")
 	}
 
-	// Resolve Commision
 	commision := ps.resolveCommision(pt.RetailerID, rc.distributorID, rc.mdID, rc.adminID, "PAYOUT", pt.Amount)
 	totalDeduction := pt.Amount + commision.TotalCommision
 
@@ -171,18 +169,6 @@ func (ps *PostgresPayoutTransactionStore) InitializePayoutTransaction(pt *models
 	return tx.Commit()
 }
 
-func (ps *PostgresPayoutTransactionStore) GetPayoutTransactionByID(payoutTransactionID string) (*models.PayoutTransactionModel, error) {
-	q := payoutSelectBase + `WHERE pt.payout_transaction_id = $1;`
-	results, err := scanPayoutTransactions(ps.db, q, payoutTransactionID)
-	if err != nil {
-		return nil, err
-	}
-	if len(results) == 0 {
-		return nil, errors.New("payout transaction not found")
-	}
-	return &results[0], nil
-}
-
 func (ps *PostgresPayoutTransactionStore) FinalizePayout(payoutTransactionID, orderID, operatorTransactionID, status string) error {
 	if !models.IsValidPayoutStatus(status) {
 		return errors.New("invalid payout_transaction_status")
@@ -209,9 +195,6 @@ func (ps *PostgresPayoutTransactionStore) FinalizePayout(payoutTransactionID, or
 	return nil
 }
 
-// RefundPayout reverses a FAILED payout: deducts commissions from each recipient
-// and credits the full amount (payout + all commissions) back to the retailer.
-// Uses AND payout_transaction_status = 'FAILED' guard to prevent double-refund.
 func (ps *PostgresPayoutTransactionStore) RefundPayout(payoutTransactionID string) error {
 	pt, err := ps.GetPayoutTransactionByID(payoutTransactionID)
 	if err != nil {
@@ -318,6 +301,18 @@ LEFT JOIN wallet_transactions wt ON wt.reference_id = pt.payout_transaction_id::
 	AND wt.user_id = pt.retailer_id
 	AND wt.debit_amount IS NOT NULL
 `
+
+func (ps *PostgresPayoutTransactionStore) GetPayoutTransactionByID(payoutTransactionID string) (*models.PayoutTransactionModel, error) {
+	q := payoutSelectBase + `WHERE pt.payout_transaction_id = $1;`
+	results, err := scanPayoutTransactions(ps.db, q, payoutTransactionID)
+	if err != nil {
+		return nil, err
+	}
+	if len(results) == 0 {
+		return nil, errors.New("payout transaction not found")
+	}
+	return &results[0], nil
+}
 
 func (ps *PostgresPayoutTransactionStore) GetAllPayoutTransactions(p utils.QueryParams) ([]models.PayoutTransactionModel, error) {
 	q := payoutSelectBase + `

@@ -20,7 +20,10 @@ const (
 	PennyDrop      = "/api/v1/verification/penny_drop_v2"
 	Payout         = "/rkitpayout/payoutTransfer"
 	PayoutStatus   = "/recharge/statusCheck"
-	MobileRecharge = "/recharge/prepaid"
+	MobileRecharge         = "/recharge/prepaid"
+	PostpaidMobileRecharge = "/recharge/postpaid"
+	PrepaidPlanFetch       = "/recharge/prepaidPlanFetch"
+	PostpaidBillFetch      = "/recharge/postPaidBillFetch"
 )
 
 var apiHTTPClient = &http.Client{Timeout: 30 * time.Second}

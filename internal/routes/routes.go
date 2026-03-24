@@ -29,6 +29,7 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 	beneficiaryRoutes(router, app)
 	revertTransactionRoutes(router, app)
 	payoutRoutes(router, app)
+	mobileRechargeRoutes(router, app)
 
 	return router
 }
@@ -271,5 +272,31 @@ func payoutRoutes(router *chi.Mux, app *app.Application) {
 		r.Get("/retailer/{id}", app.PayoutHandler.HandleGetPayoutTransactionsByRetailerID)
 		r.Get("/distributor/{id}", app.PayoutHandler.HandleGetPayoutTransactionsByDistributorID)
 		r.Get("/md/{id}", app.PayoutHandler.HandleGetPayoutTransactionsByMasterDistributorID)
+	})
+}
+
+func mobileRechargeRoutes(router *chi.Mux, app *app.Application) {
+	router.Route("/mobile-recharge", func(r chi.Router) {
+		r.Use(middlewares.AuthorizationMiddleware)
+
+		r.Post("/create", app.MobileRechargeHandler.HandleCreateMobileRecharge)
+		r.Get("/prepaid-plans", app.MobileRechargeHandler.HandleFetchPrepaidPlans)
+		r.Post("/postpaid-bill", app.MobileRechargeHandler.HandleFetchPostpaidBill)
+		r.Get("/all", app.MobileRechargeHandler.HandleGetAllMobileRecharge)
+		r.Get("/retailer/{id}", app.MobileRechargeHandler.HandleGetMobileRechargeByRetailerID)
+		r.Get("/distributor/{id}", app.MobileRechargeHandler.HandleGetMobileRechargeByDistributorID)
+		r.Get("/md/{id}", app.MobileRechargeHandler.HandleGetMobileRechargeByMasterDistributorID)
+
+		// Circle management
+		r.Post("/circles", app.MobileRechargeHandler.HandleCreateMobileRechargeCircle)
+		r.Put("/circles/{id}", app.MobileRechargeHandler.HandleUpdateMobileRechargeCircle)
+		r.Delete("/circles/{id}", app.MobileRechargeHandler.HandleDeleteMobileRechargeCircle)
+		r.Get("/circles", app.MobileRechargeHandler.HandleGetMobileRechargeCircles)
+
+		// Operator management
+		r.Post("/operators", app.MobileRechargeHandler.HandleCreateMobileRechargeOperator)
+		r.Put("/operators/{id}", app.MobileRechargeHandler.HandleUpdateMobileRechargeOperator)
+		r.Delete("/operators/{id}", app.MobileRechargeHandler.HandleDeleteMobileRechargeOperator)
+		r.Get("/operators", app.MobileRechargeHandler.HandleGetMobileRechargeOperators)
 	})
 }
