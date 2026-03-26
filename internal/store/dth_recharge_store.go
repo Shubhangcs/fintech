@@ -245,6 +245,7 @@ FROM dth_recharge dr
 JOIN retailers r ON dr.retailer_id = r.retailer_id
 LEFT JOIN wallet_transactions wt ON wt.reference_id = dr.dth_transaction_id::TEXT
 	AND wt.user_id = dr.retailer_id AND wt.debit_amount IS NOT NULL
+	AND wt.transaction_reason = 'DTH_RECHARGE'
 `
 
 func (ds *PostgresDTHRechargeStore) GetDTHRechargeByID(id int64) (*models.DTHRechargeModel, error) {

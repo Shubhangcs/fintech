@@ -257,6 +257,7 @@ FROM mobile_recharge mr
 JOIN retailers r ON mr.retailer_id = r.retailer_id
 LEFT JOIN wallet_transactions wt ON wt.reference_id = mr.mobile_recharge_transaction_id::TEXT
 	AND wt.user_id = mr.retailer_id AND wt.debit_amount IS NOT NULL
+	AND wt.transaction_reason IN ('MOBILE_RECHARGE', 'POSTPAID_MOBILE_RECHARGE')
 `
 
 func (ms *PostgresMobileRechargeStore) GetMobileRechargeByID(id int64) (*models.MobileRechargeModel, error) {

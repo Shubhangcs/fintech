@@ -188,6 +188,7 @@ FROM electricity_bill_payments eb
 JOIN retailers r ON eb.retailer_id = r.retailer_id
 LEFT JOIN wallet_transactions wt ON wt.reference_id = eb.electricity_bill_transaction_id::TEXT
 	AND wt.user_id = eb.retailer_id AND wt.debit_amount IS NOT NULL
+	AND wt.transaction_reason = 'ELECTRICITY_BILL_PAYMENT'
 `
 
 func (es *PostgresElectricityBillStore) GetElectricityBillByID(id int64) (*models.ElectricityBillModel, error) {
