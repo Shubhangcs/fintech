@@ -63,7 +63,6 @@ func (ms *PostgresMobileRechargeStore) InitializeMobileRecharge(mr *models.Mobil
 	mr.Commision = commision
 	mr.RechargeStatus = "PENDING"
 
-	// Wallet reason differs per recharge type.
 	walletReason := "MOBILE_RECHARGE"
 	if mr.RechargeType == "POSTPAID" {
 		walletReason = "POSTPAID_MOBILE_RECHARGE"

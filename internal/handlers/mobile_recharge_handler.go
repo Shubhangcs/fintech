@@ -19,7 +19,10 @@ type MobileRechargeHandler struct {
 }
 
 func NewMobileRechargeHandler(rechargeStore store.MobileRechargeStore, logger *slog.Logger) *MobileRechargeHandler {
-	return &MobileRechargeHandler{rechargeStore: rechargeStore, logger: logger}
+	return &MobileRechargeHandler{
+		rechargeStore: rechargeStore,
+		logger:        logger,
+	}
 }
 
 func (mh *MobileRechargeHandler) HandleCreateMobileRecharge(w http.ResponseWriter, r *http.Request) {
@@ -64,9 +67,6 @@ func (mh *MobileRechargeHandler) HandleCreateMobileRecharge(w http.ResponseWrite
 	})
 }
 
-// callMobileRechargeAPI calls the operator API (prepaid or postpaid endpoint based on
-// recharge_type) and returns the response, mapped status, orderID, and operatorTxnID.
-// On any error the status defaults to FAILED and IDs are empty.
 func callMobileRechargeAPI(logger *slog.Logger, mr *models.MobileRechargeModel) (resp *models.PayoutAPIResponseModel, finalStatus, orderID, operatorTxnID string) {
 	finalStatus = "FAILED"
 
@@ -119,8 +119,6 @@ func callMobileRechargeAPI(logger *slog.Logger, mr *models.MobileRechargeModel) 
 	}
 	return
 }
-
-// --- GET handlers ---
 
 func (mh *MobileRechargeHandler) HandleGetAllMobileRecharge(w http.ResponseWriter, r *http.Request) {
 	p := utils.ReadQueryParams(r)
@@ -176,8 +174,6 @@ func (mh *MobileRechargeHandler) HandleGetMobileRechargeByMasterDistributorID(w 
 	}
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "mobile recharges fetched", "mobile_recharges": results})
 }
-
-// --- Circle management handlers ---
 
 func (mh *MobileRechargeHandler) HandleCreateMobileRechargeCircle(w http.ResponseWriter, r *http.Request) {
 	var circle models.MobileRechargeCircleModel
@@ -249,8 +245,6 @@ func (mh *MobileRechargeHandler) HandleGetMobileRechargeCircles(w http.ResponseW
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "circles fetched", "circles": circles})
 }
 
-// --- Operator management handlers ---
-
 func (mh *MobileRechargeHandler) HandleCreateMobileRechargeOperator(w http.ResponseWriter, r *http.Request) {
 	var op models.MobileRechargeOperatorModel
 	if err := json.NewDecoder(r.Body).Decode(&op); err != nil {
@@ -321,8 +315,6 @@ func (mh *MobileRechargeHandler) HandleGetMobileRechargeOperators(w http.Respons
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "operators fetched", "operators": operators})
 }
 
-// HandleFetchPrepaidPlans fetches available prepaid plans for a given operator and circle.
-// Query params: operator_code (int), circle (int)
 func (mh *MobileRechargeHandler) HandleFetchPrepaidPlans(w http.ResponseWriter, r *http.Request) {
 	operatorCode := r.URL.Query().Get("operator_code")
 	circle := r.URL.Query().Get("circle")
@@ -346,8 +338,6 @@ func (mh *MobileRechargeHandler) HandleFetchPrepaidPlans(w http.ResponseWriter, 
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"plans": resp})
 }
 
-// HandleFetchPostpaidBill fetches bill details for a postpaid mobile number.
-// Body: { "mobile_no": "...", "operator_code": ... }
 func (mh *MobileRechargeHandler) HandleFetchPostpaidBill(w http.ResponseWriter, r *http.Request) {
 	var req models.PostpaidBillFetchRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
