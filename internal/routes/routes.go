@@ -31,6 +31,7 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 	payoutRoutes(router, app)
 	mobileRechargeRoutes(router, app)
 	dthRechargeRoutes(router, app)
+	electricityBillRoutes(router, app)
 
 	return router
 }
@@ -282,6 +283,7 @@ func dthRechargeRoutes(router *chi.Mux, app *app.Application) {
 
 		r.Post("/create", app.DTHRechargeHandler.HandleCreateDTHRecharge)
 		r.Post("/status-check/{id}", app.DTHRechargeHandler.HandleCheckDTHRechargeStatus)
+		r.Post("/refund/{id}", app.DTHRechargeHandler.HandleRefundDTHRecharge)
 		r.Get("/all", app.DTHRechargeHandler.HandleGetAllDTHRecharge)
 		r.Get("/retailer/{id}", app.DTHRechargeHandler.HandleGetDTHRechargeByRetailerID)
 		r.Get("/distributor/{id}", app.DTHRechargeHandler.HandleGetDTHRechargeByDistributorID)
@@ -295,12 +297,32 @@ func dthRechargeRoutes(router *chi.Mux, app *app.Application) {
 	})
 }
 
+func electricityBillRoutes(router *chi.Mux, app *app.Application) {
+	router.Route("/electricity-bill", func(r chi.Router) {
+		r.Use(middlewares.AuthorizationMiddleware)
+
+		r.Post("/create", app.ElectricityBillHandler.HandleCreateElectricityBill)
+		r.Post("/status-check/{id}", app.ElectricityBillHandler.HandleCheckElectricityBillStatus)
+		r.Post("/refund/{id}", app.ElectricityBillHandler.HandleRefundElectricityBill)
+		r.Get("/all", app.ElectricityBillHandler.HandleGetAllElectricityBills)
+		r.Get("/retailer/{id}", app.ElectricityBillHandler.HandleGetElectricityBillsByRetailerID)
+		r.Get("/distributor/{id}", app.ElectricityBillHandler.HandleGetElectricityBillsByDistributorID)
+		r.Get("/md/{id}", app.ElectricityBillHandler.HandleGetElectricityBillsByMasterDistributorID)
+
+		r.Post("/operators", app.ElectricityBillHandler.HandleCreateElectricityOperator)
+		r.Put("/operators/{id}", app.ElectricityBillHandler.HandleUpdateElectricityOperator)
+		r.Delete("/operators/{id}", app.ElectricityBillHandler.HandleDeleteElectricityOperator)
+		r.Get("/operators", app.ElectricityBillHandler.HandleGetElectricityOperators)
+	})
+}
+
 func mobileRechargeRoutes(router *chi.Mux, app *app.Application) {
 	router.Route("/mobile-recharge", func(r chi.Router) {
 		r.Use(middlewares.AuthorizationMiddleware)
 
 		r.Post("/create", app.MobileRechargeHandler.HandleCreateMobileRecharge)
 		r.Post("/status-check/{id}", app.MobileRechargeHandler.HandleCheckMobileRechargeStatus)
+		r.Post("/refund/{id}", app.MobileRechargeHandler.HandleRefundMobileRecharge)
 		r.Get("/prepaid-plans", app.MobileRechargeHandler.HandleFetchPrepaidPlans)
 		r.Post("/postpaid-bill", app.MobileRechargeHandler.HandleFetchPostpaidBill)
 		r.Get("/all", app.MobileRechargeHandler.HandleGetAllMobileRecharge)

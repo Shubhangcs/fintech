@@ -207,6 +207,25 @@ func callDTHRechargeStatusAPI(logger *slog.Logger, partnerRequestID string, id i
 	return
 }
 
+func (dh *DTHRechargeHandler) HandleRefundDTHRecharge(w http.ResponseWriter, r *http.Request) {
+	id, err := utils.ReadParamIDInt(r)
+	if err != nil {
+		utils.BadRequest(w, dh.logger, "refund dth recharge", err)
+		return
+	}
+
+	if err = dh.rechargeStore.RefundDTHRecharge(id); err != nil {
+		if isDTHClientErr(err) {
+			utils.BadRequest(w, dh.logger, "refund dth recharge", err)
+			return
+		}
+		utils.ServerError(w, dh.logger, "refund dth recharge", err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "dth recharge refunded"})
+}
+
 func (dh *DTHRechargeHandler) HandleGetAllDTHRecharge(w http.ResponseWriter, r *http.Request) {
 	p := utils.ReadQueryParams(r)
 	results, err := dh.rechargeStore.GetAllDTHRecharge(p)
@@ -339,5 +358,7 @@ func isDTHClientErr(err error) bool {
 		msg == "retailer is blocked" ||
 		msg == "insufficient wallet balance" ||
 		msg == "operator not found" ||
-		msg == "dth recharge not found or already finalized"
+		msg == "dth recharge not found or already finalized" ||
+		msg == "dth recharge not found or already refunded" ||
+		msg == "only FAILED recharges can be refunded"
 }

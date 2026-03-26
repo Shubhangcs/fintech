@@ -81,6 +81,9 @@ func callMobileRechargeAPI(logger *slog.Logger, mr *models.MobileRechargeModel) 
 	}
 
 	rechargeType := 1
+	if mr.RechargeType == "POSTPAID" {
+		rechargeType = 2
+	}
 
 	var apiResp models.APIResponseModel
 	err := utils.PostRequest(
@@ -215,6 +218,25 @@ func callMobileRechargeStatusAPI(logger *slog.Logger, partnerRequestID string, i
 		finalStatus = "PENDING"
 	}
 	return
+}
+
+func (mh *MobileRechargeHandler) HandleRefundMobileRecharge(w http.ResponseWriter, r *http.Request) {
+	id, err := utils.ReadParamIDInt(r)
+	if err != nil {
+		utils.BadRequest(w, mh.logger, "refund mobile recharge", err)
+		return
+	}
+
+	if err = mh.rechargeStore.RefundMobileRecharge(id); err != nil {
+		if isRechargeClientErr(err) {
+			utils.BadRequest(w, mh.logger, "refund mobile recharge", err)
+			return
+		}
+		utils.ServerError(w, mh.logger, "refund mobile recharge", err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "mobile recharge refunded"})
 }
 
 func (mh *MobileRechargeHandler) HandleGetAllMobileRecharge(w http.ResponseWriter, r *http.Request) {
@@ -480,5 +502,7 @@ func isRechargeClientErr(err error) bool {
 		msg == "insufficient wallet balance" ||
 		msg == "operator not found" ||
 		msg == "circle not found" ||
-		msg == "recharge not found or already finalized"
+		msg == "recharge not found or already finalized" ||
+		msg == "recharge not found or already refunded" ||
+		msg == "only FAILED recharges can be refunded"
 }

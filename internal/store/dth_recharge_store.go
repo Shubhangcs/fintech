@@ -24,6 +24,7 @@ func NewPostgresDTHRechargeStore(db *sql.DB, walletStore WalletTransactionStore)
 type DTHRechargeStore interface {
 	InitializeDTHRecharge(dr *models.DTHRechargeModel) error
 	FinalizeDTHRecharge(id int64, operatorTxnID, orderID, status string) error
+	RefundDTHRecharge(id int64) error
 	GetDTHRechargeByID(id int64) (*models.DTHRechargeModel, error)
 	GetAllDTHRecharge(p utils.QueryParams) ([]models.DTHRechargeModel, error)
 	GetDTHRechargeByRetailerID(retailerID string, p utils.QueryParams) ([]models.DTHRechargeModel, error)
@@ -147,6 +148,85 @@ func (ds *PostgresDTHRechargeStore) FinalizeDTHRecharge(id int64, operatorTxnID,
 		return errors.New("dth recharge not found or already finalized")
 	}
 	return nil
+}
+
+func (ds *PostgresDTHRechargeStore) RefundDTHRecharge(id int64) error {
+	dr, err := ds.GetDTHRechargeByID(id)
+	if err != nil {
+		return err
+	}
+	if dr.Status != "FAILED" {
+		return errors.New("only FAILED recharges can be refunded")
+	}
+
+	rc, err := getRetailerDetails(ds.db, dr.RetailerID)
+	if err != nil {
+		return err
+	}
+
+	tx, err := ds.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Atomic guard: prevents double-refund.
+	res, err := tx.Exec(`
+		UPDATE dth_recharge
+		SET status = 'REFUND'
+		WHERE dth_transaction_id = $1 AND status = 'FAILED'
+	`, id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return errors.New("dth recharge not found or already refunded")
+	}
+
+	refID := fmt.Sprintf("%d", id)
+	remarks := fmt.Sprintf("DTH recharge refund | Ref: %s", refID)
+
+	retailerInfo, err := getUserTableInfo(dr.RetailerID)
+	if err != nil {
+		return err
+	}
+
+	// Reverse commission: debit from retailer, credit back to admin.
+	if dr.Commision > 0 {
+		if err = debitTx(tx, transaction{
+			UserID: dr.RetailerID, ReferenceID: refID,
+			Amount: dr.Commision, Reason: "DTH_RECHARGE_REFUND", Remarks: remarks,
+			userTableInfo: *retailerInfo,
+		}, ds.walletStore); err != nil {
+			return err
+		}
+		adminInfo, err := getUserTableInfo(rc.adminID)
+		if err != nil {
+			return err
+		}
+		if err = creditTx(tx, transaction{
+			UserID: rc.adminID, ReferenceID: refID,
+			Amount: dr.Commision, Reason: "DTH_RECHARGE_REFUND", Remarks: remarks,
+			userTableInfo: *adminInfo,
+		}, ds.walletStore); err != nil {
+			return err
+		}
+	}
+
+	// Credit full recharge amount back to retailer.
+	if err = creditTx(tx, transaction{
+		UserID: dr.RetailerID, ReferenceID: refID,
+		Amount: dr.Amount, Reason: "DTH_RECHARGE_REFUND", Remarks: remarks,
+		userTableInfo: *retailerInfo,
+	}, ds.walletStore); err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 const dthRechargeSelectBase = `

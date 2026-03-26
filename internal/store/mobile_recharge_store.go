@@ -24,6 +24,7 @@ func NewPostgresMobileRechargeStore(db *sql.DB, walletStore WalletTransactionSto
 type MobileRechargeStore interface {
 	InitializeMobileRecharge(mr *models.MobileRechargeModel) error
 	FinalizeMobileRecharge(id int64, operatorTxnID, orderID, status string) error
+	RefundMobileRecharge(id int64) error
 	GetMobileRechargeByID(id int64) (*models.MobileRechargeModel, error)
 	GetAllMobileRecharge(p utils.QueryParams) ([]models.MobileRechargeModel, error)
 	GetMobileRechargeByRetailerID(retailerID string, p utils.QueryParams) ([]models.MobileRechargeModel, error)
@@ -160,6 +161,85 @@ func (ms *PostgresMobileRechargeStore) FinalizeMobileRecharge(id int64, operator
 		return errors.New("recharge not found or already finalized")
 	}
 	return nil
+}
+
+func (ms *PostgresMobileRechargeStore) RefundMobileRecharge(id int64) error {
+	mr, err := ms.GetMobileRechargeByID(id)
+	if err != nil {
+		return err
+	}
+	if mr.RechargeStatus != "FAILED" {
+		return errors.New("only FAILED recharges can be refunded")
+	}
+
+	rc, err := getRetailerDetails(ms.db, mr.RetailerID)
+	if err != nil {
+		return err
+	}
+
+	tx, err := ms.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Atomic guard: prevents double-refund.
+	res, err := tx.Exec(`
+		UPDATE mobile_recharge
+		SET recharge_status = 'REFUND'
+		WHERE mobile_recharge_transaction_id = $1 AND recharge_status = 'FAILED'
+	`, id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return errors.New("recharge not found or already refunded")
+	}
+
+	refID := fmt.Sprintf("%d", id)
+	remarks := fmt.Sprintf("Mobile recharge refund | Ref: %s", refID)
+
+	retailerInfo, err := getUserTableInfo(mr.RetailerID)
+	if err != nil {
+		return err
+	}
+
+	// Reverse commission: debit from retailer, credit back to admin.
+	if mr.Commision > 0 {
+		if err = debitTx(tx, transaction{
+			UserID: mr.RetailerID, ReferenceID: refID,
+			Amount: mr.Commision, Reason: "MOBILE_RECHARGE_REFUND", Remarks: remarks,
+			userTableInfo: *retailerInfo,
+		}, ms.walletStore); err != nil {
+			return err
+		}
+		adminInfo, err := getUserTableInfo(rc.adminID)
+		if err != nil {
+			return err
+		}
+		if err = creditTx(tx, transaction{
+			UserID: rc.adminID, ReferenceID: refID,
+			Amount: mr.Commision, Reason: "MOBILE_RECHARGE_REFUND", Remarks: remarks,
+			userTableInfo: *adminInfo,
+		}, ms.walletStore); err != nil {
+			return err
+		}
+	}
+
+	// Credit full recharge amount back to retailer.
+	if err = creditTx(tx, transaction{
+		UserID: mr.RetailerID, ReferenceID: refID,
+		Amount: mr.Amount, Reason: "MOBILE_RECHARGE_REFUND", Remarks: remarks,
+		userTableInfo: *retailerInfo,
+	}, ms.walletStore); err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 const mobileRechargeSelectBase = `
