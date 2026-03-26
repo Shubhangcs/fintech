@@ -71,6 +71,10 @@ func (ps *PostgresPayoutTransactionStore) InitializePayoutTransaction(pt *models
 		return err
 	}
 
+	if pt.Amount < 1000 {
+		return errors.New("minimum transaction amount is 1000")
+	}
+
 	if pt.Amount > retailerTransactionLimit {
 		return errors.New("transaction limit exceded")
 	}
@@ -117,8 +121,8 @@ func (ps *PostgresPayoutTransactionStore) InitializePayoutTransaction(pt *models
 	}
 
 	refID := pt.PayoutTransactionID
-	payoutRemarks := fmt.Sprintf("Payout to %s | Account: %s | Amount: %.2f", pt.BeneficiaryName, pt.AccountNumber, pt.Amount)
-	commisionRemarks := fmt.Sprintf("Payout commission | Ref: %s", refID)
+	payoutRemarks := fmt.Sprintf("Payout on %s | Account: %s | Amount: %.2f", pt.BeneficiaryName, pt.AccountNumber, pt.Amount)
+	commisionRemarks := fmt.Sprintf("Payout commission  | Amount: %.2f | Ref: %s", pt.Amount, refID)
 
 	retailerInfo, err := getUserTableInfo(pt.RetailerID)
 	if err != nil {

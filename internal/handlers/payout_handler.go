@@ -45,7 +45,7 @@ func (ph *PayoutHandler) HandleCreatePayoutTransaction(w http.ResponseWriter, r 
 	}
 
 	if len(req.RetailerID) == 0 || string(req.RetailerID[0]) != "R" {
-		utils.BadRequest(w, ph.logger, "create payout transaction", errors.New("retailer_id must belong to a retailer"))
+		utils.BadRequest(w, ph.logger, "create payout transaction", errors.New("invalid retailer id"))
 		return
 	}
 
@@ -330,5 +330,6 @@ func isPayoutClientErr(err error) bool {
 		msg == "payout transaction not found or already finalized" ||
 		msg == "payout transaction not found or already refunded" ||
 		msg == "only FAILED payout transactions can be refunded" ||
-		msg == "invalid payout_transaction_status"
+		msg == "invalid payout_transaction_status" ||
+		msg == "minimum transaction amount is 1000"
 }

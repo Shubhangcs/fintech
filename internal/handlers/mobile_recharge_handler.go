@@ -426,7 +426,7 @@ func (mh *MobileRechargeHandler) HandleFetchPrepaidPlans(w http.ResponseWriter, 
 	}
 
 	url := fmt.Sprintf("%s%s?circle=%s&operator_code=%s", utils.RechargeKitAPI1, utils.PrepaidPlanFetch, circle, operatorCode)
-	var resp models.PrepaidPlanFetchResponse
+	var resp models.PrepaidPlanFetchResponseModel
 	if err := utils.GetRequest(url, "Authorization", "Bearer "+utils.RechargeKitAPIToken, &resp); err != nil {
 		utils.ServerError(w, mh.logger, "fetch prepaid plans", err)
 		return

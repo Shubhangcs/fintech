@@ -71,35 +71,12 @@ func (mr *MobileRechargeModel) ValidateInitializeMobileRecharge() error {
 	return nil
 }
 
-// --- Prepaid plan fetch ---
-
-type PrepaidPlanItem struct {
-	Amount      float64 `json:"amount"`
-	Validity    string  `json:"validity"`
-	Description string  `json:"description"`
-	Talktime    string  `json:"talktime"`
-	SMS         any     `json:"sms"`
-	Disclaimer  string  `json:"disclaimer"`
-	IsValid     int     `json:"is_valid"`
+type PrepaidPlanFetchResponseModel struct {
+	Error    int    `json:"error"`
+	Message  string `json:"msg"`
+	Status   int    `json:"status"`
+	PlanData any    `json:"planData"`
 }
-
-// PrepaidPlanCategory maps a category name (e.g. "Jio Cricket") to its plans.
-type PrepaidPlanCategory = map[string][]PrepaidPlanItem
-
-type PrepaidPlanData struct {
-	CircleID string                 `json:"circle_id"`
-	ID       string                 `json:"_id"`
-	Plans    []PrepaidPlanCategory  `json:"plan"`
-}
-
-type PrepaidPlanFetchResponse struct {
-	Error    int              `json:"error"`
-	Message  string           `json:"msg"`
-	Status   int              `json:"status"`
-	PlanData *PrepaidPlanData `json:"planData"`
-}
-
-// --- Postpaid bill fetch ---
 
 type PostpaidBillFetchRequest struct {
 	MobileNumber string `json:"mobile_no"`
@@ -107,14 +84,14 @@ type PostpaidBillFetchRequest struct {
 }
 
 type PostpaidBillAmount struct {
-	BillAmount     string `json:"billAmount"`
-	BillNetAmount  string `json:"billnetamount"`
-	BillDate       string `json:"billdate"`
-	DueDate        string `json:"dueDate"`
-	AcceptPayment  string `json:"acceptPayment"`
-	AcceptPartPay  string `json:"acceptPartPay"`
-	CellNumber     string `json:"cellNumber"`
-	UserName       string `json:"userName"`
+	BillAmount    string `json:"billAmount"`
+	BillNetAmount string `json:"billnetamount"`
+	BillDate      string `json:"billdate"`
+	DueDate       string `json:"dueDate"`
+	AcceptPayment string `json:"acceptPayment"`
+	AcceptPartPay string `json:"acceptPartPay"`
+	CellNumber    string `json:"cellNumber"`
+	UserName      string `json:"userName"`
 }
 
 type PostpaidBillFetchResponse struct {
