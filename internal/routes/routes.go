@@ -304,6 +304,7 @@ func electricityBillRoutes(router *chi.Mux, app *app.Application) {
 		r.Post("/create", app.ElectricityBillHandler.HandleCreateElectricityBill)
 		r.Post("/status-check/{id}", app.ElectricityBillHandler.HandleCheckElectricityBillStatus)
 		r.Post("/refund/{id}", app.ElectricityBillHandler.HandleRefundElectricityBill)
+		r.Post("/bill-fetch", app.ElectricityBillHandler.HandleFetchElectricityBill)
 		r.Get("/all", app.ElectricityBillHandler.HandleGetAllElectricityBills)
 		r.Get("/retailer/{id}", app.ElectricityBillHandler.HandleGetElectricityBillsByRetailerID)
 		r.Get("/distributor/{id}", app.ElectricityBillHandler.HandleGetElectricityBillsByDistributorID)

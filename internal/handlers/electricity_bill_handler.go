@@ -81,7 +81,9 @@ func callElectricityBillAPI(logger *slog.Logger, eb *models.ElectricityBillModel
 		"Authorization",
 		"Bearer "+utils.RechargeKitAPIToken,
 		map[string]any{
-			"customer_id":        eb.CustomerID,
+			"p1":                 eb.CustomerID,
+			"p2":                 "",
+			"p3":                 "",
 			"operator_code":      eb.OperatorCode,
 			"amount":             eb.Amount,
 			"customer_email":     eb.CustomerEmail,
@@ -281,6 +283,43 @@ func (eh *ElectricityBillHandler) HandleGetElectricityBillsByMasterDistributorID
 		return
 	}
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "electricity bills fetched", "electricity_bills": results})
+}
+
+func (eh *ElectricityBillHandler) HandleFetchElectricityBill(w http.ResponseWriter, r *http.Request) {
+	var req models.ElectricityBillFetchRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.BadRequest(w, eh.logger, "fetch electricity bill", err)
+		return
+	}
+	if req.ConsumerID == "" {
+		utils.BadRequest(w, eh.logger, "fetch electricity bill", errors.New("consumer_id is required"))
+		return
+	}
+	if req.OperatorCode == 0 {
+		utils.BadRequest(w, eh.logger, "fetch electricity bill", errors.New("operator_code is required"))
+		return
+	}
+	if utils.RechargeKitAPI1 == "" || utils.RechargeKitAPIToken == "" {
+		utils.ServerError(w, eh.logger, "fetch electricity bill", errors.New("recharge api not configured"))
+		return
+	}
+
+	var resp models.ElectricityBillFetchResponse
+	if err := utils.PostRequest(
+		utils.RechargeKitAPI1+utils.ElectricityBillFetch,
+		"Authorization",
+		"Bearer "+utils.RechargeKitAPIToken,
+		map[string]any{
+			"consumer_id":   req.ConsumerID,
+			"operator_code": req.OperatorCode,
+		},
+		&resp,
+	); err != nil {
+		utils.ServerError(w, eh.logger, "fetch electricity bill", err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"bill": resp})
 }
 
 func (eh *ElectricityBillHandler) HandleCreateElectricityOperator(w http.ResponseWriter, r *http.Request) {

@@ -25,7 +25,8 @@ const (
 	PrepaidPlanFetch       = "/recharge/prepaidPlanFetch"
 	PostpaidBillFetch      = "/recharge/postPaidBillFetch"
 	DTHRecharge            = "/recharge/dth"
-	ElectricityBill        = "/recharge/electricity"
+	ElectricityBill        = "/recharge/billpayment"
+	ElectricityBillFetch   = "/recharge/electricityBillFetch"
 )
 
 var apiHTTPClient = &http.Client{Timeout: 30 * time.Second}
