@@ -58,17 +58,8 @@ type ElectricityBillFetchRequest struct {
 }
 
 type ElectricityBillFetchResponse struct {
-	Error      int                        `json:"error"`
-	Status     int                        `json:"status"`
-	Message    string                     `json:"msg"`
-	BillAmount *ElectricityBillAmountData `json:"billAmount"`
-}
-
-type ElectricityBillAmountData struct {
-	ConsumerID   string  `json:"consumer_id"`
-	ConsumerName string  `json:"consumer_name"`
-	BillAmount   float64 `json:"bill_Amount"`
-	BillDueDate  string  `json:"bill_due_date"`
-	BillDate     string  `json:"bill_date"`
-	BillNo       string  `json:"bill_no"`
+	Error      int    `json:"error"`
+	Status     int    `json:"status"`
+	Message    string `json:"msg"`
+	BillAmount any    `json:"billAmount"`
 }
