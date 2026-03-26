@@ -67,7 +67,7 @@ func (mh *MobileRechargeHandler) HandleCreateMobileRecharge(w http.ResponseWrite
 	})
 }
 
-func callMobileRechargeAPI(logger *slog.Logger, mr *models.MobileRechargeModel) (resp *models.PayoutAPIResponseModel, finalStatus, orderID, operatorTxnID string) {
+func callMobileRechargeAPI(logger *slog.Logger, mr *models.MobileRechargeModel) (resp *models.APIResponseModel, finalStatus, orderID, operatorTxnID string) {
 	finalStatus = "FAILED"
 
 	if utils.RechargeKitAPI1 == "" || utils.RechargeKitAPIToken == "" {
@@ -82,7 +82,7 @@ func callMobileRechargeAPI(logger *slog.Logger, mr *models.MobileRechargeModel) 
 
 	rechargeType := 1
 
-	var apiResp models.PayoutAPIResponseModel
+	var apiResp models.APIResponseModel
 	err := utils.PostRequest(
 		utils.RechargeKitAPI1+endpoint,
 		"Authorization",
@@ -174,7 +174,7 @@ func (mh *MobileRechargeHandler) HandleCheckMobileRechargeStatus(w http.Response
 	})
 }
 
-func callMobileRechargeStatusAPI(logger *slog.Logger, partnerRequestID string, id int64) (resp *models.PayoutAPIResponseModel, finalStatus, orderID, operatorTxnID string) {
+func callMobileRechargeStatusAPI(logger *slog.Logger, partnerRequestID string, id int64) (resp *models.APIResponseModel, finalStatus, orderID, operatorTxnID string) {
 	finalStatus = "PENDING"
 
 	if utils.RechargeKitAPI1 == "" || utils.RechargeKitAPIToken == "" {
@@ -182,7 +182,7 @@ func callMobileRechargeStatusAPI(logger *slog.Logger, partnerRequestID string, i
 		return
 	}
 
-	var apiResp models.PayoutAPIResponseModel
+	var apiResp models.APIResponseModel
 	err := utils.PostRequest(
 		utils.RechargeKitAPI1+utils.PayoutStatus,
 		"Authorization",

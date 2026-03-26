@@ -50,13 +50,15 @@ func (dh *DTHRechargeHandler) HandleCreateDTHRecharge(w http.ResponseWriter, r *
 		return
 	}
 
-	apiResp, finalStatus := callDTHRechargeAPI(dh.logger, &dr)
+	apiResp, finalStatus, orderID, operatorTxnID := callDTHRechargeAPI(dh.logger, &dr)
 
-	if err := dh.rechargeStore.FinalizeDTHRecharge(dr.DTHTransactionID, finalStatus); err != nil {
+	if err := dh.rechargeStore.FinalizeDTHRecharge(dr.DTHTransactionID, operatorTxnID, orderID, finalStatus); err != nil {
 		dh.logger.Error("failed to finalize dth recharge", "error", err, "id", dr.DTHTransactionID)
 	}
 
 	dr.Status = finalStatus
+	dr.OrderID = orderID
+	dr.OperatorTransactionID = operatorTxnID
 	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{
 		"message":      "dth recharge processed",
 		"recharge":     dr,
@@ -64,7 +66,7 @@ func (dh *DTHRechargeHandler) HandleCreateDTHRecharge(w http.ResponseWriter, r *
 	})
 }
 
-func callDTHRechargeAPI(logger *slog.Logger, dr *models.DTHRechargeModel) (resp *models.PayoutAPIResponseModel, finalStatus string) {
+func callDTHRechargeAPI(logger *slog.Logger, dr *models.DTHRechargeModel) (resp *models.APIResponseModel, finalStatus, orderID, operatorTxnID string) {
 	finalStatus = "FAILED"
 
 	if utils.RechargeKitAPI1 == "" || utils.RechargeKitAPIToken == "" {
@@ -72,7 +74,7 @@ func callDTHRechargeAPI(logger *slog.Logger, dr *models.DTHRechargeModel) (resp 
 		return
 	}
 
-	var apiResp models.PayoutAPIResponseModel
+	var apiResp models.APIResponseModel
 	err := utils.PostRequest(
 		utils.RechargeKitAPI1+utils.DTHRecharge,
 		"Authorization",
@@ -91,6 +93,8 @@ func callDTHRechargeAPI(logger *slog.Logger, dr *models.DTHRechargeModel) (resp 
 	}
 
 	resp = &apiResp
+	orderID = apiResp.OrderID
+	operatorTxnID = apiResp.OperatorTransactionID
 
 	if apiResp.Error != 0 {
 		logger.Error("dth recharge api error", "msg", apiResp.Message, "id", dr.DTHTransactionID)
@@ -133,9 +137,9 @@ func (dh *DTHRechargeHandler) HandleCheckDTHRechargeStatus(w http.ResponseWriter
 		return
 	}
 
-	apiResp, finalStatus := callDTHRechargeStatusAPI(dh.logger, dr.PartnerRequestID, dr.DTHTransactionID)
+	apiResp, finalStatus, orderID, operatorTxnID := callDTHRechargeStatusAPI(dh.logger, dr.PartnerRequestID, dr.DTHTransactionID)
 
-	if err = dh.rechargeStore.FinalizeDTHRecharge(dr.DTHTransactionID, finalStatus); err != nil {
+	if err = dh.rechargeStore.FinalizeDTHRecharge(dr.DTHTransactionID, operatorTxnID, orderID, finalStatus); err != nil {
 		if err.Error() == "dth recharge not found or already finalized" {
 			utils.BadRequest(w, dh.logger, "check dth recharge status", err)
 			return
@@ -145,6 +149,8 @@ func (dh *DTHRechargeHandler) HandleCheckDTHRechargeStatus(w http.ResponseWriter
 	}
 
 	dr.Status = finalStatus
+	dr.OrderID = orderID
+	dr.OperatorTransactionID = operatorTxnID
 
 	msg := "recharge status updated"
 	if finalStatus == "PENDING" {
@@ -158,7 +164,7 @@ func (dh *DTHRechargeHandler) HandleCheckDTHRechargeStatus(w http.ResponseWriter
 	})
 }
 
-func callDTHRechargeStatusAPI(logger *slog.Logger, partnerRequestID string, id int64) (resp *models.PayoutAPIResponseModel, finalStatus string) {
+func callDTHRechargeStatusAPI(logger *slog.Logger, partnerRequestID string, id int64) (resp *models.APIResponseModel, finalStatus, orderID, operatorTxnID string) {
 	finalStatus = "PENDING"
 
 	if utils.RechargeKitAPI1 == "" || utils.RechargeKitAPIToken == "" {
@@ -166,7 +172,7 @@ func callDTHRechargeStatusAPI(logger *slog.Logger, partnerRequestID string, id i
 		return
 	}
 
-	var apiResp models.PayoutAPIResponseModel
+	var apiResp models.APIResponseModel
 	err := utils.PostRequest(
 		utils.RechargeKitAPI1+utils.PayoutStatus,
 		"Authorization",
@@ -182,6 +188,8 @@ func callDTHRechargeStatusAPI(logger *slog.Logger, partnerRequestID string, id i
 	}
 
 	resp = &apiResp
+	orderID = apiResp.OrderID
+	operatorTxnID = apiResp.OperatorTransactionID
 
 	if apiResp.Error != 0 {
 		logger.Error("dth recharge status api error", "msg", apiResp.Message, "id", id)

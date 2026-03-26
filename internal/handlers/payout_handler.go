@@ -77,7 +77,7 @@ func (ph *PayoutHandler) HandleCreatePayoutTransaction(w http.ResponseWriter, r 
 	})
 }
 
-func callPayoutAPI(logger *slog.Logger, pt *models.PayoutTransactionModel) (resp *models.PayoutAPIResponseModel, finalStatus, orderID, operatorTxnID string) {
+func callPayoutAPI(logger *slog.Logger, pt *models.PayoutTransactionModel) (resp *models.APIResponseModel, finalStatus, orderID, operatorTxnID string) {
 	finalStatus = "FAILED"
 
 	if utils.RechargeKitAPI2 == "" || utils.RechargeKitAPIToken == "" {
@@ -86,7 +86,7 @@ func callPayoutAPI(logger *slog.Logger, pt *models.PayoutTransactionModel) (resp
 	}
 
 	var transactionType int
-	var apiResp models.PayoutAPIResponseModel
+	var apiResp models.APIResponseModel
 	if pt.TransferType == "IMPS" {
 		transactionType = 5
 	} else {
@@ -172,7 +172,7 @@ func (ph *PayoutHandler) HandleCheckPayoutStatus(w http.ResponseWriter, r *http.
 	})
 }
 
-func callPayoutStatusAPI(logger *slog.Logger, partnerRequestID, payoutTransactionID string) (resp *models.PayoutAPIResponseModel, finalStatus, orderID, operatorTxnID string) {
+func callPayoutStatusAPI(logger *slog.Logger, partnerRequestID, payoutTransactionID string) (resp *models.APIResponseModel, finalStatus, orderID, operatorTxnID string) {
 	finalStatus = "PENDING"
 
 	if utils.RechargeKitAPI2 == "" || utils.RechargeKitAPIToken == "" {
@@ -182,7 +182,7 @@ func callPayoutStatusAPI(logger *slog.Logger, partnerRequestID, payoutTransactio
 
 	fmt.Print(payoutTransactionID)
 
-	var apiResp models.PayoutAPIResponseModel
+	var apiResp models.APIResponseModel
 	err := utils.PostRequest(
 		utils.RechargeKitAPI1+utils.PayoutStatus,
 		"Authorization",

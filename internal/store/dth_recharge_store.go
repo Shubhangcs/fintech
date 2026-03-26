@@ -23,7 +23,7 @@ func NewPostgresDTHRechargeStore(db *sql.DB, walletStore WalletTransactionStore)
 
 type DTHRechargeStore interface {
 	InitializeDTHRecharge(dr *models.DTHRechargeModel) error
-	FinalizeDTHRecharge(id int64, status string) error
+	FinalizeDTHRecharge(id int64, operatorTxnID, orderID, status string) error
 	GetDTHRechargeByID(id int64) (*models.DTHRechargeModel, error)
 	GetAllDTHRecharge(p utils.QueryParams) ([]models.DTHRechargeModel, error)
 	GetDTHRechargeByRetailerID(retailerID string, p utils.QueryParams) ([]models.DTHRechargeModel, error)
@@ -69,12 +69,14 @@ func (ds *PostgresDTHRechargeStore) InitializeDTHRecharge(dr *models.DTHRecharge
 	if err = tx.QueryRow(`
 		INSERT INTO dth_recharge (
 			retailer_id, partner_request_id, customer_id,
-			operator_name, operator_code, amount, commision, status
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+			operator_name, operator_code, amount, commision,
+			operator_transaction_id, order_id, status
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
 		RETURNING dth_transaction_id, created_at
 	`,
 		dr.RetailerID, dr.PartnerRequestID, dr.CustomerID,
-		dr.OperatorName, dr.OperatorCode, dr.Amount, dr.Commision, dr.Status,
+		dr.OperatorName, dr.OperatorCode, dr.Amount, dr.Commision,
+		"", "", dr.Status,
 	).Scan(&dr.DTHTransactionID, &dr.CreatedAt); err != nil {
 		return err
 	}
@@ -125,15 +127,15 @@ func (ds *PostgresDTHRechargeStore) InitializeDTHRecharge(dr *models.DTHRecharge
 	return tx.Commit()
 }
 
-func (ds *PostgresDTHRechargeStore) FinalizeDTHRecharge(id int64, status string) error {
+func (ds *PostgresDTHRechargeStore) FinalizeDTHRecharge(id int64, operatorTxnID, orderID, status string) error {
 	if !models.IsValidRechargeStatus(status) {
 		return errors.New("invalid status")
 	}
 	res, err := ds.db.Exec(`
 		UPDATE dth_recharge
-		SET status = $2
+		SET status = $2, operator_transaction_id = $3, order_id = $4
 		WHERE dth_transaction_id = $1 AND status = 'PENDING'
-	`, id, status)
+	`, id, status, operatorTxnID, orderID)
 	if err != nil {
 		return err
 	}
@@ -151,7 +153,10 @@ const dthRechargeSelectBase = `
 SELECT
 	dr.dth_transaction_id, dr.partner_request_id,
 	dr.retailer_id, dr.customer_id, dr.operator_name, dr.operator_code,
-	dr.amount, dr.commision, dr.status, dr.created_at,
+	dr.amount, dr.commision,
+	COALESCE(dr.operator_transaction_id, '') AS operator_transaction_id,
+	COALESCE(dr.order_id, '') AS order_id,
+	dr.status, dr.created_at,
 	COALESCE(r.retailer_name, '') AS retailer_name,
 	r.retailer_business_name,
 	COALESCE(wt.before_balance, 0) AS before_balance,
@@ -229,7 +234,9 @@ func scanDTHRecharges(db *sql.DB, q string, args ...any) ([]models.DTHRechargeMo
 		if err := rows.Scan(
 			&dr.DTHTransactionID, &dr.PartnerRequestID,
 			&dr.RetailerID, &dr.CustomerID, &dr.OperatorName, &dr.OperatorCode,
-			&dr.Amount, &dr.Commision, &dr.Status, &dr.CreatedAt,
+			&dr.Amount, &dr.Commision,
+			&dr.OperatorTransactionID, &dr.OrderID,
+			&dr.Status, &dr.CreatedAt,
 			&dr.RetailerName, &dr.RetailerBusinessName,
 			&dr.BeforeBalance, &dr.AfterBalance,
 		); err != nil {

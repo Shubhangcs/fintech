@@ -83,22 +83,11 @@ type PostpaidBillFetchRequest struct {
 	OperatorCode int    `json:"operator_code"`
 }
 
-type PostpaidBillAmount struct {
-	BillAmount    string `json:"billAmount"`
-	BillNetAmount string `json:"billnetamount"`
-	BillDate      string `json:"billdate"`
-	DueDate       string `json:"dueDate"`
-	AcceptPayment string `json:"acceptPayment"`
-	AcceptPartPay string `json:"acceptPartPay"`
-	CellNumber    string `json:"cellNumber"`
-	UserName      string `json:"userName"`
-}
-
 type PostpaidBillFetchResponse struct {
-	Error      int                 `json:"error"`
-	Status     int                 `json:"status"`
-	Message    string              `json:"msg"`
-	BillAmount *PostpaidBillAmount `json:"billAmount"`
+	Error      int    `json:"error"`
+	Status     int    `json:"status"`
+	Message    string `json:"msg"`
+	BillAmount any    `json:"billAmount"`
 }
 
 type MobileRechargeCircleModel struct {

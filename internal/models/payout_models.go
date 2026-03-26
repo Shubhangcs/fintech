@@ -92,11 +92,4 @@ func (pt *FinilizePayoutModel) ValidateFinilizePayoutModel() error {
 	return nil
 }
 
-type PayoutAPIResponseModel struct {
-	Error                 int    `json:"error"`
-	Message               string `json:"msg"`
-	Status                int    `json:"status"`
-	OrderID               string `json:"orderid"`
-	OperatorTransactionID string `json:"optransid"`
-	PartnerRequestID      string `json:"partnerreqid"`
-}
+
