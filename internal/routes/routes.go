@@ -30,6 +30,7 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 	revertTransactionRoutes(router, app)
 	payoutRoutes(router, app)
 	mobileRechargeRoutes(router, app)
+	dthRechargeRoutes(router, app)
 
 	return router
 }
@@ -275,11 +276,31 @@ func payoutRoutes(router *chi.Mux, app *app.Application) {
 	})
 }
 
+func dthRechargeRoutes(router *chi.Mux, app *app.Application) {
+	router.Route("/dth-recharge", func(r chi.Router) {
+		r.Use(middlewares.AuthorizationMiddleware)
+
+		r.Post("/create", app.DTHRechargeHandler.HandleCreateDTHRecharge)
+		r.Post("/status-check/{id}", app.DTHRechargeHandler.HandleCheckDTHRechargeStatus)
+		r.Get("/all", app.DTHRechargeHandler.HandleGetAllDTHRecharge)
+		r.Get("/retailer/{id}", app.DTHRechargeHandler.HandleGetDTHRechargeByRetailerID)
+		r.Get("/distributor/{id}", app.DTHRechargeHandler.HandleGetDTHRechargeByDistributorID)
+		r.Get("/md/{id}", app.DTHRechargeHandler.HandleGetDTHRechargeByMasterDistributorID)
+
+		// Operator management
+		r.Post("/operators", app.DTHRechargeHandler.HandleCreateDTHRechargeOperator)
+		r.Put("/operators/{id}", app.DTHRechargeHandler.HandleUpdateDTHRechargeOperator)
+		r.Delete("/operators/{id}", app.DTHRechargeHandler.HandleDeleteDTHRechargeOperator)
+		r.Get("/operators", app.DTHRechargeHandler.HandleGetDTHRechargeOperators)
+	})
+}
+
 func mobileRechargeRoutes(router *chi.Mux, app *app.Application) {
 	router.Route("/mobile-recharge", func(r chi.Router) {
 		r.Use(middlewares.AuthorizationMiddleware)
 
 		r.Post("/create", app.MobileRechargeHandler.HandleCreateMobileRecharge)
+		r.Post("/status-check/{id}", app.MobileRechargeHandler.HandleCheckMobileRechargeStatus)
 		r.Get("/prepaid-plans", app.MobileRechargeHandler.HandleFetchPrepaidPlans)
 		r.Post("/postpaid-bill", app.MobileRechargeHandler.HandleFetchPostpaidBill)
 		r.Get("/all", app.MobileRechargeHandler.HandleGetAllMobileRecharge)

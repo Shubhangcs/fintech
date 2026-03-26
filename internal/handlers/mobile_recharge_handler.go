@@ -80,6 +80,8 @@ func callMobileRechargeAPI(logger *slog.Logger, mr *models.MobileRechargeModel) 
 		endpoint = utils.PostpaidMobileRecharge
 	}
 
+	rechargeType := 1
+
 	var apiResp models.PayoutAPIResponseModel
 	err := utils.PostRequest(
 		utils.RechargeKitAPI1+endpoint,
@@ -90,7 +92,7 @@ func callMobileRechargeAPI(logger *slog.Logger, mr *models.MobileRechargeModel) 
 			"operator_code":      mr.OperatorCode,
 			"circle":             mr.CircleCode,
 			"amount":             mr.Amount,
-			"recharge_type":      1,
+			"recharge_type":      rechargeType,
 			"partner_request_id": mr.PartnerRequestID,
 		},
 		&apiResp,
@@ -116,6 +118,101 @@ func callMobileRechargeAPI(logger *slog.Logger, mr *models.MobileRechargeModel) 
 		finalStatus = "PENDING"
 	default:
 		finalStatus = "FAILED"
+	}
+	return
+}
+
+func (mh *MobileRechargeHandler) HandleCheckMobileRechargeStatus(w http.ResponseWriter, r *http.Request) {
+	id, err := utils.ReadParamIDInt(r)
+	if err != nil {
+		utils.BadRequest(w, mh.logger, "check mobile recharge status", err)
+		return
+	}
+
+	mr, err := mh.rechargeStore.GetMobileRechargeByID(id)
+	if err != nil {
+		if err.Error() == "recharge not found" {
+			utils.BadRequest(w, mh.logger, "check mobile recharge status", err)
+			return
+		}
+		utils.ServerError(w, mh.logger, "check mobile recharge status", err)
+		return
+	}
+
+	if mr.RechargeStatus != "PENDING" {
+		utils.WriteJSON(w, http.StatusOK, utils.Envelope{
+			"message":  "recharge already finalized",
+			"recharge": mr,
+		})
+		return
+	}
+
+	apiResp, finalStatus, orderID, operatorTxnID := callMobileRechargeStatusAPI(mh.logger, mr.PartnerRequestID, mr.MobileRechargeTransactionID)
+
+	if err = mh.rechargeStore.FinalizeMobileRecharge(mr.MobileRechargeTransactionID, operatorTxnID, orderID, finalStatus); err != nil {
+		if err.Error() == "recharge not found or already finalized" {
+			utils.BadRequest(w, mh.logger, "check mobile recharge status", err)
+			return
+		}
+		utils.ServerError(w, mh.logger, "check mobile recharge status finalize", err)
+		return
+	}
+
+	mr.RechargeStatus = finalStatus
+	mr.OrderID = orderID
+	mr.OperatorTransactionID = operatorTxnID
+
+	msg := "recharge status updated"
+	if finalStatus == "PENDING" {
+		msg = "recharge still pending"
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{
+		"message":      msg,
+		"recharge":     mr,
+		"api_response": apiResp,
+	})
+}
+
+func callMobileRechargeStatusAPI(logger *slog.Logger, partnerRequestID string, id int64) (resp *models.PayoutAPIResponseModel, finalStatus, orderID, operatorTxnID string) {
+	finalStatus = "PENDING"
+
+	if utils.RechargeKitAPI1 == "" || utils.RechargeKitAPIToken == "" {
+		logger.Error("mobile recharge status api not configured", "id", id)
+		return
+	}
+
+	var apiResp models.PayoutAPIResponseModel
+	err := utils.PostRequest(
+		utils.RechargeKitAPI1+utils.PayoutStatus,
+		"Authorization",
+		"Bearer "+utils.RechargeKitAPIToken,
+		map[string]any{
+			"partner_request_id": partnerRequestID,
+		},
+		&apiResp,
+	)
+	if err != nil {
+		logger.Error("mobile recharge status api call failed", "error", err, "id", id)
+		return
+	}
+
+	resp = &apiResp
+	orderID = apiResp.OrderID
+	operatorTxnID = apiResp.OperatorTransactionID
+
+	if apiResp.Error != 0 {
+		logger.Error("mobile recharge status api error", "msg", apiResp.Message, "id", id)
+		return
+	}
+
+	switch apiResp.Status {
+	case 1:
+		finalStatus = "SUCCESS"
+	case 3:
+		finalStatus = "FAILED"
+	default:
+		finalStatus = "PENDING"
 	}
 	return
 }
@@ -382,5 +479,6 @@ func isRechargeClientErr(err error) bool {
 		msg == "retailer is blocked" ||
 		msg == "insufficient wallet balance" ||
 		msg == "operator not found" ||
-		msg == "circle not found"
+		msg == "circle not found" ||
+		msg == "recharge not found or already finalized"
 }
