@@ -58,8 +58,8 @@ func (mh *MobileRechargeHandler) HandleCreateMobileRecharge(w http.ResponseWrite
 	}
 
 	mr.RechargeStatus = finalStatus
-	mr.OrderID = orderID
-	mr.OperatorTransactionID = operatorTxnID
+	mr.OrderID = &orderID
+	mr.OperatorTransactionID = &operatorTxnID
 	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{
 		"message":      "mobile recharge processed",
 		"recharge":     mr,
@@ -162,8 +162,8 @@ func (mh *MobileRechargeHandler) HandleCheckMobileRechargeStatus(w http.Response
 	}
 
 	mr.RechargeStatus = finalStatus
-	mr.OrderID = orderID
-	mr.OperatorTransactionID = operatorTxnID
+	mr.OrderID = &orderID
+	mr.OperatorTransactionID = &operatorTxnID
 
 	msg := "recharge status updated"
 	if finalStatus == "PENDING" {

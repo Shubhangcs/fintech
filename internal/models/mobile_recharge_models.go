@@ -33,8 +33,8 @@ type MobileRechargeModel struct {
 	Amount                      float64   `json:"amount"`
 	Commision                   float64   `json:"commision"`
 	RechargeType                string    `json:"recharge_type"`
-	OperatorTransactionID       string    `json:"operator_transaction_id"`
-	OrderID                     string    `json:"order_id"`
+	OperatorTransactionID       *string   `json:"operator_transaction_id"`
+	OrderID                     *string   `json:"order_id"`
 	RechargeStatus              string    `json:"recharge_status"`
 	CreatedAt                   time.Time `json:"created_at"`
 	RetailerName                string    `json:"retailer_name,omitempty"`
