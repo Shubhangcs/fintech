@@ -93,12 +93,6 @@ func (bh *BeneficiaryHandler) HandleDeleteBeneficiary(w http.ResponseWriter, r *
 
 // Verify Beneficiary Handler
 func (bh *BeneficiaryHandler) HandleVerifyBeneficiary(w http.ResponseWriter, r *http.Request) {
-	id, err := utils.ReadParamID(r)
-	if err != nil {
-		utils.BadRequest(w, bh.logger, "verify beneficiary", err)
-		return
-	}
-
 	var req models.VerifyBeneficiaryRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.BadRequest(w, bh.logger, "verify beneficiary", err)
@@ -110,7 +104,7 @@ func (bh *BeneficiaryHandler) HandleVerifyBeneficiary(w http.ResponseWriter, r *
 		return
 	}
 
-	reqID := id + uuid.NewString()
+	reqID := uuid.NewString()
 	token, err := utils.GeneratePaysprintToken(reqID)
 	if err != nil {
 		utils.ServerError(w, bh.logger, "verify beneficiary", err)
@@ -130,15 +124,6 @@ func (bh *BeneficiaryHandler) HandleVerifyBeneficiary(w http.ResponseWriter, r *
 
 	if !apiResp.Status {
 		utils.BadRequest(w, bh.logger, "verify beneficiary", errors.New(apiResp.Message))
-		return
-	}
-
-	if err := bh.beneficiaryStore.VerifyBeneficiary(id); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			utils.BadRequest(w, bh.logger, "verify beneficiary", errors.New("beneficiary not found"))
-			return
-		}
-		utils.ServerError(w, bh.logger, "verify beneficiary", err)
 		return
 	}
 

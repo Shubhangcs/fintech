@@ -26,13 +26,13 @@ type BeneficiaryStore interface {
 // Create Beneficiary
 func (bs *PostgresBeneficiaryStore) CreateBeneficiary(b *models.BeneficiaryModel) error {
 	query := `
-	INSERT INTO beneficiaries (mobile_number, bank_name, ifsc_code, account_number, beneficiary_name, beneficiary_phone)
-	VALUES ($1, $2, $3, $4, $5, $6)
+	INSERT INTO beneficiaries (mobile_number, bank_name, ifsc_code, account_number, beneficiary_name, beneficiary_phone, beneficiary_verified)
+	VALUES ($1, $2, $3, $4, $5, $6, $7)
 	RETURNING beneficiary_id, beneficiary_verified, created_at;
 	`
 	return bs.db.QueryRow(query,
 		b.MobileNumber, b.BankName, b.IFSCCode,
-		b.AccountNumber, b.BeneficiaryName, b.BeneficiaryPhone,
+		b.AccountNumber, b.BeneficiaryName, b.BeneficiaryPhone, b.BeneficiaryVerified,
 	).Scan(&b.BeneficiaryID, &b.BeneficiaryVerified, &b.CreatedAT)
 }
 

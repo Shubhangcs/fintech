@@ -171,7 +171,7 @@ func beneficiaryRoutes(router *chi.Mux, app *app.Application) {
 		r.Put("/update/{id}", app.BeneficiaryHandler.HandleUpdateBeneficiary)
 		r.Delete("/delete/{id}", app.BeneficiaryHandler.HandleDeleteBeneficiary)
 		r.Get("/mobile/{mobile}", app.BeneficiaryHandler.HandleGetBeneficiaries)
-		r.Post("/verify/{id}", app.BeneficiaryHandler.HandleVerifyBeneficiary)
+		r.Post("/verify", app.BeneficiaryHandler.HandleVerifyBeneficiary)
 	})
 }
 
