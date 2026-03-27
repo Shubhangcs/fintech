@@ -304,6 +304,7 @@ JOIN retailers r ON pt.retailer_id = r.retailer_id
 LEFT JOIN wallet_transactions wt ON wt.reference_id = pt.payout_transaction_id::TEXT
 	AND wt.user_id = pt.retailer_id
 	AND wt.debit_amount IS NOT NULL
+	AND wt.transaction_reason = 'PAYOUT'
 `
 
 func (ps *PostgresPayoutTransactionStore) GetPayoutTransactionByID(payoutTransactionID string) (*models.PayoutTransactionModel, error) {
