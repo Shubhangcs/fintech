@@ -22,6 +22,7 @@ type FundRequestStore interface {
 	CreateFundRequest(fr *models.FundRequestModel) error
 	ApproveFundRequest(fundRequestID int64) error
 	RejectFundRequest(fr *models.FundRequestModel) error
+	UploadFundRequestRecipt(id int64, recipt string) error
 	GetFundRequestsByRequesterID(requesterID string, p utils.QueryParams) ([]models.FundRequestModel, error)
 	GetFundRequestsByRequestToID(requestToID string, p utils.QueryParams) ([]models.FundRequestModel, error)
 	GetAllFundRequests(p utils.QueryParams) ([]models.FundRequestModel, error)
@@ -123,6 +124,25 @@ func (fs *PostgresFundRequestStore) ApproveFundRequest(fundRequestID int64) erro
 	return tx.Commit()
 }
 
+// Upload Fund Request Recipt
+func (fs *PostgresFundRequestStore) UploadFundRequestRecipt(id int64, recipt string) error {
+	res, err := fs.db.Exec(`
+		UPDATE fund_requests SET recipt = $1, updated_at = CURRENT_TIMESTAMP
+		WHERE fund_request_id = $2 AND request_type = 'NORMAL'
+	`, recipt, id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return errors.New("fund request not found or not a NORMAL type request")
+	}
+	return nil
+}
+
 // Reject Fund Request
 func (fs *PostgresFundRequestStore) RejectFundRequest(fr *models.FundRequestModel) error {
 	res, err := fs.db.Exec(`
@@ -148,7 +168,7 @@ const fundRequestSelectBase = `
 SELECT
 	fr.fund_request_id, fr.requester_id, fr.request_to_id, fr.amount, fr.bank_name,
 	fr.request_date, fr.utr_number, fr.request_type, fr.request_status,
-	fr.remarks, fr.reject_remarks, fr.created_at, fr.updated_at,
+	fr.remarks, fr.reject_remarks, fr.recipt, fr.created_at, fr.updated_at,
 	COALESCE(q.name, '')  AS requester_name,
 	q.business_name       AS requester_business_name,
 	COALESCE(p.name, '')  AS request_to_name,
@@ -226,7 +246,7 @@ func scanFundRequests(db *sql.DB, query string, args ...any) ([]models.FundReque
 		if err = rows.Scan(
 			&fr.FundRequestID, &fr.RequesterID, &fr.RequestToID, &fr.Amount, &fr.BankName,
 			&fr.RequestDate, &fr.UTRNumber, &fr.RequestType, &fr.RequestStatus,
-			&fr.Remarks, &fr.RejectRemarks, &fr.CreatedAT, &fr.UpdatedAT,
+			&fr.Remarks, &fr.RejectRemarks, &fr.Recipt, &fr.CreatedAT, &fr.UpdatedAT,
 			&fr.RequesterName, &fr.RequesterBusinessName,
 			&fr.RequestToName, &fr.RequestToBusinessName,
 		); err != nil {

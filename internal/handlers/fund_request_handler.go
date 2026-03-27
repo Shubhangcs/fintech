@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/levionstudio/fintech/internal/models"
 	"github.com/levionstudio/fintech/internal/store"
@@ -16,12 +17,14 @@ import (
 type FundRequestHandler struct {
 	fundRequestStore store.FundRequestStore
 	logger           *slog.Logger
+	awss3            *utils.AWSS3
 }
 
-func NewFundRequestHandler(fundRequestStore store.FundRequestStore, logger *slog.Logger) *FundRequestHandler {
+func NewFundRequestHandler(fundRequestStore store.FundRequestStore, logger *slog.Logger, awss3 *utils.AWSS3) *FundRequestHandler {
 	return &FundRequestHandler{
 		fundRequestStore: fundRequestStore,
 		logger:           logger,
+		awss3:            awss3,
 	}
 }
 
@@ -190,6 +193,47 @@ func (fh *FundRequestHandler) HandleGetAllFundRequests(w http.ResponseWriter, r 
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "fund requests fetched successfully", "fund_requests": requests})
 }
 
+// Upload Fund Request Recipt Handler
+func (fh *FundRequestHandler) HandleUploadFundRequestRecipt(w http.ResponseWriter, r *http.Request) {
+	id, err := utils.ReadParamIDInt(r)
+	if err != nil {
+		utils.BadRequest(w, fh.logger, "upload fund request recipt", err)
+		return
+	}
+
+	var req struct {
+		FileExtension string `json:"file_extension"`
+	}
+	if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.BadRequest(w, fh.logger, "upload fund request recipt", err)
+		return
+	}
+	if req.FileExtension == "" {
+		req.FileExtension = "pdf"
+	}
+
+	key := fmt.Sprintf("fund-requests/%d/%d_recipt_%d.%s", id, id, time.Now().Unix(), req.FileExtension)
+	url, err := fh.awss3.GenerateUploadPresignedURL(key)
+	if err != nil {
+		utils.ServerError(w, fh.logger, "upload fund request recipt", err)
+		return
+	}
+
+	if err = fh.fundRequestStore.UploadFundRequestRecipt(id, key); err != nil {
+		if isFundRequestClientErr(err) {
+			utils.BadRequest(w, fh.logger, "upload fund request recipt", err)
+			return
+		}
+		utils.ServerError(w, fh.logger, "upload fund request recipt", err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{
+		"message": "fund request recipt upload url generated successfully",
+		"url":     url,
+	})
+}
+
 func prefixToRole(prefix string) string {
 	switch prefix {
 	case "A":
@@ -210,6 +254,7 @@ func isFundRequestClientErr(err error) bool {
 	msg := err.Error()
 	return msg == "fund request not found" ||
 		msg == "fund request not found or already processed" ||
+		msg == "fund request not found or not a NORMAL type request" ||
 		msg == "insufficient balance" ||
 		msg == "requester not found" ||
 		msg == "request_to user not found" ||

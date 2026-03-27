@@ -251,6 +251,7 @@ func fundRequestRoutes(router *chi.Mux, app *app.Application) {
 	router.Route("/fund-request", func(r chi.Router) {
 		r.Use(middlewares.AuthorizationMiddleware)
 
+		r.Post("/upload-recipt/{id}", app.FundRequestHandler.HandleUploadFundRequestRecipt)
 		r.Post("/md-to-admin", app.FundRequestHandler.HandleMDRequestToAdmin)
 		r.Post("/distributor-to-admin", app.FundRequestHandler.HandleDistributorRequestToAdmin)
 		r.Post("/distributor-to-md", app.FundRequestHandler.HandleDistributorRequestToMD)

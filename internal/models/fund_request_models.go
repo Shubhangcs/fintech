@@ -17,6 +17,7 @@ type FundRequestModel struct {
 	RequestStatus          string    `json:"request_status"`
 	Remarks                string    `json:"remarks"`
 	RejectRemarks          *string   `json:"reject_remarks"`
+	Recipt                 *string   `json:"recipt,omitempty"`
 	RequesterName          string    `json:"requester_name,omitempty"`
 	RequesterBusinessName  *string   `json:"requester_business_name,omitempty"`
 	RequestToName          string    `json:"request_to_name,omitempty"`

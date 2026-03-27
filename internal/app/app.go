@@ -74,7 +74,7 @@ func NewApplication() (*Application, error) {
 	retailerHandler := handlers.NewRetailerHandler(retailerStore, loginActivityStore, logger, awss3)
 	walletTransactionHandler := handlers.NewWalletTransactionHandler(walletTransactionStore, logger)
 	fundTransferHandler := handlers.NewFundTransferHandler(fundTransferStore, logger)
-	fundRequestHandler := handlers.NewFundRequestHandler(fundRequestStore, logger)
+	fundRequestHandler := handlers.NewFundRequestHandler(fundRequestStore, logger, awss3)
 	bankHandler := handlers.NewBankHandler(bankStore, logger)
 	commisionHandler := handlers.NewCommisionHandler(commisionStore, logger)
 	transactionLimitHandler := handlers.NewTransactionLimitHandler(transactionLimitStore, logger)
