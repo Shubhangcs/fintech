@@ -308,3 +308,37 @@ func (ah *AdminHandler) HandleGetAdminWalletBalance(w http.ResponseWriter, r *ht
 
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "admin wallet balance fetched successfully", "balance": balance})
 }
+
+func (ah *AdminHandler) HandleGetRechargeKitRechargeBalance(w http.ResponseWriter, r *http.Request) {
+	if utils.RechargeKitAPI1 == "" || utils.RechargeKitAPIToken == "" {
+		utils.ServerError(w, ah.logger, "get recharge balance", errors.New("recharge api not configured"))
+		return
+	}
+	var resp models.RechargeKitWalletBalanceResponseModel
+	if err := utils.GetRequest(
+		utils.RechargeKitAPI1+utils.BalanceCheck,
+		"Authorization", "Bearer "+utils.RechargeKitAPIToken,
+		&resp,
+	); err != nil {
+		utils.ServerError(w, ah.logger, "get recharge balance", err)
+		return
+	}
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "recharge wallet balance fetched", "balance": resp})
+}
+
+func (ah *AdminHandler) HandleGetRechargeKitPrimaryBalance(w http.ResponseWriter, r *http.Request) {
+	if utils.RechargeKitAPI2 == "" || utils.RechargeKitAPIToken == "" {
+		utils.ServerError(w, ah.logger, "get primary balance", errors.New("recharge api not configured"))
+		return
+	}
+	var resp models.RechargeKitWalletBalanceResponseModel
+	if err := utils.GetRequest(
+		utils.RechargeKitAPI2+utils.BalanceCheck,
+		"Authorization", "Bearer "+utils.RechargeKitAPIToken,
+		&resp,
+	); err != nil {
+		utils.ServerError(w, ah.logger, "get primary balance", err)
+		return
+	}
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "primary wallet balance fetched", "balance": resp})
+}

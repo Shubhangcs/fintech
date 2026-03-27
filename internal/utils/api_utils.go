@@ -27,6 +27,7 @@ const (
 	DTHRecharge            = "/recharge/dth"
 	ElectricityBill        = "/recharge/billpayment"
 	ElectricityBillFetch   = "/recharge/electricityBillFetch"
+	BalanceCheck           = "/recharge/balanceCheck"
 )
 
 var apiHTTPClient = &http.Client{Timeout: 30 * time.Second}

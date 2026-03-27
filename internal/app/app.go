@@ -31,6 +31,7 @@ type Application struct {
 	MobileRechargeHandler    *handlers.MobileRechargeHandler
 	DTHRechargeHandler       *handlers.DTHRechargeHandler
 	ElectricityBillHandler   *handlers.ElectricityBillHandler
+	LoginActivityHandler     *handlers.LoginActivityHandler
 }
 
 func NewApplication() (*Application, error) {
@@ -84,6 +85,7 @@ func NewApplication() (*Application, error) {
 	mobileRechargeHandler := handlers.NewMobileRechargeHandler(mobileRechargeStore, logger)
 	dthRechargeHandler := handlers.NewDTHRechargeHandler(dthRechargeStore, logger)
 	electricityBillHandler := handlers.NewElectricityBillHandler(electricityBillStore, logger)
+	loginActivityHandler := handlers.NewLoginActivityHandler(loginActivityStore, logger)
 
 	return &Application{
 		Logger:                   logger,
@@ -105,5 +107,6 @@ func NewApplication() (*Application, error) {
 		MobileRechargeHandler:    mobileRechargeHandler,
 		DTHRechargeHandler:       dthRechargeHandler,
 		ElectricityBillHandler:   electricityBillHandler,
+		LoginActivityHandler:     loginActivityHandler,
 	}, nil
 }

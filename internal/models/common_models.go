@@ -13,3 +13,9 @@ type APIResponseModel struct {
 	OperatorTransactionID string `json:"optransid"`
 	PartnerRequestID      string `json:"partnerreqid"`
 }
+
+type RechargeKitWalletBalanceResponseModel struct {
+	Error   int     `json:"error"`
+	Message string  `json:"msg"`
+	Balance float64 `json:"balance"`
+}

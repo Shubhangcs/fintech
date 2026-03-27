@@ -32,6 +32,7 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 	mobileRechargeRoutes(router, app)
 	dthRechargeRoutes(router, app)
 	electricityBillRoutes(router, app)
+	loginActivityRoutes(router, app)
 
 	return router
 }
@@ -48,6 +49,8 @@ func adminRoutes(router *chi.Mux, app *app.Application) {
 		r.Get("/dropdown", app.AdminHandler.HandleGetAdminsForDropdown)
 		r.Get("/get/{id}", app.AdminHandler.HandleGetAdminByID)
 		r.Get("/get/{id}/wallet", app.AdminHandler.HandleGetAdminWalletBalance)
+		r.Get("/recharge-kit/recharge-balance", app.AdminHandler.HandleGetRechargeKitRechargeBalance)
+		r.Get("/recharge-kit/primary-balance", app.AdminHandler.HandleGetRechargeKitPrimaryBalance)
 		r.Put("/update/{id}", app.AdminHandler.HandleUpdateAdminDetails)
 		r.Patch("/update/{id}/password", app.AdminHandler.HandleUpdateAdminPassword)
 		r.Patch("/update/{id}/wallet", app.AdminHandler.HandleUpdateAdminWalletBalance)
@@ -314,6 +317,15 @@ func electricityBillRoutes(router *chi.Mux, app *app.Application) {
 		r.Put("/operators/{id}", app.ElectricityBillHandler.HandleUpdateElectricityOperator)
 		r.Delete("/operators/{id}", app.ElectricityBillHandler.HandleDeleteElectricityOperator)
 		r.Get("/operators", app.ElectricityBillHandler.HandleGetElectricityOperators)
+	})
+}
+
+func loginActivityRoutes(router *chi.Mux, app *app.Application) {
+	router.Route("/login-activity", func(r chi.Router) {
+		r.Use(middlewares.AuthorizationMiddleware)
+
+		r.Get("/all", app.LoginActivityHandler.HandleGetAllLoginActivities)
+		r.Get("/user/{id}", app.LoginActivityHandler.HandleGetLoginActivitiesByUserID)
 	})
 }
 
