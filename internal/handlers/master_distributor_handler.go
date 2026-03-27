@@ -15,16 +15,18 @@ import (
 )
 
 type MasterDistributorHandler struct {
-	mdStore store.MasterDistributorStore
-	logger  *slog.Logger
-	awss3   *utils.AWSS3
+	mdStore            store.MasterDistributorStore
+	loginActivityStore store.LoginActivityStore
+	logger             *slog.Logger
+	awss3              *utils.AWSS3
 }
 
-func NewMasterDistributorHandler(mdStore store.MasterDistributorStore, logger *slog.Logger, awss3 *utils.AWSS3) *MasterDistributorHandler {
+func NewMasterDistributorHandler(mdStore store.MasterDistributorStore, loginActivityStore store.LoginActivityStore, logger *slog.Logger, awss3 *utils.AWSS3) *MasterDistributorHandler {
 	return &MasterDistributorHandler{
-		mdStore: mdStore,
-		logger:  logger,
-		awss3:   awss3,
+		mdStore:            mdStore,
+		loginActivityStore: loginActivityStore,
+		logger:             logger,
+		awss3:              awss3,
 	}
 }
 
@@ -253,7 +255,10 @@ func (mh *MasterDistributorHandler) HandleGetMasterDistributorsByAdminID(w http.
 
 // Master Distributor Login Handler
 func (mh *MasterDistributorHandler) HandleMasterDistributorLogin(w http.ResponseWriter, r *http.Request) {
-	var req models.MasterDistributorModel
+	var req struct {
+		models.MasterDistributorModel
+		models.LoginDeviceInfo
+	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.BadRequest(w, mh.logger, "master distributor login", err)
 		return
@@ -264,7 +269,7 @@ func (mh *MasterDistributorHandler) HandleMasterDistributorLogin(w http.Response
 		return
 	}
 
-	if err := mh.mdStore.GetMasterDistributorDetailsForLogin(&req); err != nil {
+	if err := mh.mdStore.GetMasterDistributorDetailsForLogin(&req.MasterDistributorModel); err != nil {
 		utils.BadRequest(w, mh.logger, "master distributor login", err)
 		return
 	}
@@ -274,6 +279,24 @@ func (mh *MasterDistributorHandler) HandleMasterDistributorLogin(w http.Response
 		utils.ServerError(w, mh.logger, "master distributor login", err)
 		return
 	}
+
+	mh.logger.Info("master distributor login",
+		"user_id", req.MasterDistributorID,
+		"user_agent", req.UserAgent,
+		"platform", req.Platform,
+		"latitude", req.Latitude,
+		"longitude", req.Longitude,
+		"timestamp", req.Timestamp,
+	)
+	go func() {
+		if err := mh.loginActivityStore.CreateLoginActivity(models.LoginActivity{
+			UserID: req.MasterDistributorID, UserAgent: req.UserAgent, Platform: req.Platform,
+			Latitude: req.Latitude, Longitude: req.Longitude, Accuracy: req.Accuracy,
+			LoginTimestamp: req.Timestamp,
+		}); err != nil {
+			mh.logger.Error("failed to save login activity", "error", err, "user_id", req.MasterDistributorID)
+		}
+	}()
 
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "master distributor login successfull", "token": token})
 }

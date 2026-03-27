@@ -15,16 +15,18 @@ import (
 )
 
 type AdminHandler struct {
-	adminStore  store.AdminStore
-	walletStore store.WalletTransactionStore
-	logger      *slog.Logger
+	adminStore         store.AdminStore
+	walletStore        store.WalletTransactionStore
+	loginActivityStore store.LoginActivityStore
+	logger             *slog.Logger
 }
 
-func NewAdminHandler(adminStore store.AdminStore, walletStore store.WalletTransactionStore, logger *slog.Logger) *AdminHandler {
+func NewAdminHandler(adminStore store.AdminStore, walletStore store.WalletTransactionStore, loginActivityStore store.LoginActivityStore, logger *slog.Logger) *AdminHandler {
 	return &AdminHandler{
-		adminStore:  adminStore,
-		walletStore: walletStore,
-		logger:      logger,
+		adminStore:         adminStore,
+		walletStore:        walletStore,
+		loginActivityStore: loginActivityStore,
+		logger:             logger,
 	}
 }
 
@@ -241,9 +243,11 @@ func (ah *AdminHandler) HandleGetAdmins(w http.ResponseWriter, r *http.Request) 
 
 // Admin Login Handler
 func (ah *AdminHandler) HandleAdminLogin(w http.ResponseWriter, r *http.Request) {
-	var req models.AdminModel
-	err := json.NewDecoder(r.Body).Decode(&req)
-	if err != nil {
+	var req struct {
+		models.AdminModel
+		models.LoginDeviceInfo
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.BadRequest(w, ah.logger, "admin login", err)
 		return
 	}
@@ -253,8 +257,7 @@ func (ah *AdminHandler) HandleAdminLogin(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	err = ah.adminStore.GetAdminDetailsForLogin(&req)
-	if err != nil {
+	if err := ah.adminStore.GetAdminDetailsForLogin(&req.AdminModel); err != nil {
 		utils.BadRequest(w, ah.logger, "admin login", err)
 		return
 	}
@@ -264,6 +267,24 @@ func (ah *AdminHandler) HandleAdminLogin(w http.ResponseWriter, r *http.Request)
 		utils.ServerError(w, ah.logger, "admin login", err)
 		return
 	}
+
+	ah.logger.Info("admin login",
+		"user_id", req.AdminID,
+		"user_agent", req.UserAgent,
+		"platform", req.Platform,
+		"latitude", req.Latitude,
+		"longitude", req.Longitude,
+		"timestamp", req.Timestamp,
+	)
+	go func() {
+		if err := ah.loginActivityStore.CreateLoginActivity(models.LoginActivity{
+			UserID: req.AdminID, UserAgent: req.UserAgent, Platform: req.Platform,
+			Latitude: req.Latitude, Longitude: req.Longitude, Accuracy: req.Accuracy,
+			LoginTimestamp: req.Timestamp,
+		}); err != nil {
+			ah.logger.Error("failed to save login activity", "error", err, "user_id", req.AdminID)
+		}
+	}()
 
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "admin login successful", "token": token})
 }

@@ -15,16 +15,18 @@ import (
 )
 
 type RetailerHandler struct {
-	retailerStore store.RetailerStore
-	logger        *slog.Logger
-	awss3         *utils.AWSS3
+	retailerStore      store.RetailerStore
+	loginActivityStore store.LoginActivityStore
+	logger             *slog.Logger
+	awss3              *utils.AWSS3
 }
 
-func NewRetailerHandler(retailerStore store.RetailerStore, logger *slog.Logger, awss3 *utils.AWSS3) *RetailerHandler {
+func NewRetailerHandler(retailerStore store.RetailerStore, loginActivityStore store.LoginActivityStore, logger *slog.Logger, awss3 *utils.AWSS3) *RetailerHandler {
 	return &RetailerHandler{
-		retailerStore: retailerStore,
-		logger:        logger,
-		awss3:         awss3,
+		retailerStore:      retailerStore,
+		loginActivityStore: loginActivityStore,
+		logger:             logger,
+		awss3:              awss3,
 	}
 }
 
@@ -274,7 +276,10 @@ func (rh *RetailerHandler) HandleGetRetailersByAdminID(w http.ResponseWriter, r 
 
 // Retailer Login Handler
 func (rh *RetailerHandler) HandleRetailerLogin(w http.ResponseWriter, r *http.Request) {
-	var req models.RetailerModel
+	var req struct {
+		models.RetailerModel
+		models.LoginDeviceInfo
+	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.BadRequest(w, rh.logger, "retailer login", err)
 		return
@@ -285,7 +290,7 @@ func (rh *RetailerHandler) HandleRetailerLogin(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	if err := rh.retailerStore.GetRetailerDetailsForLogin(&req); err != nil {
+	if err := rh.retailerStore.GetRetailerDetailsForLogin(&req.RetailerModel); err != nil {
 		utils.BadRequest(w, rh.logger, "retailer login", err)
 		return
 	}
@@ -295,6 +300,24 @@ func (rh *RetailerHandler) HandleRetailerLogin(w http.ResponseWriter, r *http.Re
 		utils.ServerError(w, rh.logger, "retailer login", err)
 		return
 	}
+
+	rh.logger.Info("retailer login",
+		"user_id", req.RetailerID,
+		"user_agent", req.UserAgent,
+		"platform", req.Platform,
+		"latitude", req.Latitude,
+		"longitude", req.Longitude,
+		"timestamp", req.Timestamp,
+	)
+	go func() {
+		if err := rh.loginActivityStore.CreateLoginActivity(models.LoginActivity{
+			UserID: req.RetailerID, UserAgent: req.UserAgent, Platform: req.Platform,
+			Latitude: req.Latitude, Longitude: req.Longitude, Accuracy: req.Accuracy,
+			LoginTimestamp: req.Timestamp,
+		}); err != nil {
+			rh.logger.Error("failed to save login activity", "error", err, "user_id", req.RetailerID)
+		}
+	}()
 
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "retailer login successful", "token": token})
 }

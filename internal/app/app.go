@@ -64,12 +64,13 @@ func NewApplication() (*Application, error) {
 	mobileRechargeStore := store.NewPostgresMobileRechargeStore(pgdb, walletTransactionStore)
 	dthRechargeStore := store.NewPostgresDTHRechargeStore(pgdb, walletTransactionStore)
 	electricityBillStore := store.NewPostgresElectricityBillStore(pgdb, walletTransactionStore)
+	loginActivityStore := store.NewPostgresLoginActivityStore(pgdb)
 
 	// Handlers
-	adminHandler := handlers.NewAdminHandler(adminStore, walletTransactionStore, logger)
-	mdHandler := handlers.NewMasterDistributorHandler(mdStore, logger, awss3)
-	distributorHandler := handlers.NewDistributorHandler(distributorStore, logger, awss3)
-	retailerHandler := handlers.NewRetailerHandler(retailerStore, logger, awss3)
+	adminHandler := handlers.NewAdminHandler(adminStore, walletTransactionStore, loginActivityStore, logger)
+	mdHandler := handlers.NewMasterDistributorHandler(mdStore, loginActivityStore, logger, awss3)
+	distributorHandler := handlers.NewDistributorHandler(distributorStore, loginActivityStore, logger, awss3)
+	retailerHandler := handlers.NewRetailerHandler(retailerStore, loginActivityStore, logger, awss3)
 	walletTransactionHandler := handlers.NewWalletTransactionHandler(walletTransactionStore, logger)
 	fundTransferHandler := handlers.NewFundTransferHandler(fundTransferStore, logger)
 	fundRequestHandler := handlers.NewFundRequestHandler(fundRequestStore, logger)

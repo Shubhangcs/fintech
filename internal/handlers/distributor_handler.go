@@ -15,16 +15,18 @@ import (
 )
 
 type DistributorHandler struct {
-	distributorStore store.DistributorStore
-	logger           *slog.Logger
-	awss3            *utils.AWSS3
+	distributorStore   store.DistributorStore
+	loginActivityStore store.LoginActivityStore
+	logger             *slog.Logger
+	awss3              *utils.AWSS3
 }
 
-func NewDistributorHandler(distributorStore store.DistributorStore, logger *slog.Logger, awss3 *utils.AWSS3) *DistributorHandler {
+func NewDistributorHandler(distributorStore store.DistributorStore, loginActivityStore store.LoginActivityStore, logger *slog.Logger, awss3 *utils.AWSS3) *DistributorHandler {
 	return &DistributorHandler{
-		distributorStore: distributorStore,
-		logger:           logger,
-		awss3:            awss3,
+		distributorStore:   distributorStore,
+		loginActivityStore: loginActivityStore,
+		logger:             logger,
+		awss3:              awss3,
 	}
 }
 
@@ -289,7 +291,10 @@ func (dh *DistributorHandler) HandleGetDistributorsByAdminID(w http.ResponseWrit
 
 // Distributor Login Handler
 func (dh *DistributorHandler) HandleDistributorLogin(w http.ResponseWriter, r *http.Request) {
-	var req models.DistributorModel
+	var req struct {
+		models.DistributorModel
+		models.LoginDeviceInfo
+	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.BadRequest(w, dh.logger, "distributor login", err)
 		return
@@ -300,7 +305,7 @@ func (dh *DistributorHandler) HandleDistributorLogin(w http.ResponseWriter, r *h
 		return
 	}
 
-	if err := dh.distributorStore.GetDistributorDetailsForLogin(&req); err != nil {
+	if err := dh.distributorStore.GetDistributorDetailsForLogin(&req.DistributorModel); err != nil {
 		utils.BadRequest(w, dh.logger, "distributor login", err)
 		return
 	}
@@ -310,6 +315,24 @@ func (dh *DistributorHandler) HandleDistributorLogin(w http.ResponseWriter, r *h
 		utils.ServerError(w, dh.logger, "distributor login", err)
 		return
 	}
+
+	dh.logger.Info("distributor login",
+		"user_id", req.DistributorID,
+		"user_agent", req.UserAgent,
+		"platform", req.Platform,
+		"latitude", req.Latitude,
+		"longitude", req.Longitude,
+		"timestamp", req.Timestamp,
+	)
+	go func() {
+		if err := dh.loginActivityStore.CreateLoginActivity(models.LoginActivity{
+			UserID: req.DistributorID, UserAgent: req.UserAgent, Platform: req.Platform,
+			Latitude: req.Latitude, Longitude: req.Longitude, Accuracy: req.Accuracy,
+			LoginTimestamp: req.Timestamp,
+		}); err != nil {
+			dh.logger.Error("failed to save login activity", "error", err, "user_id", req.DistributorID)
+		}
+	}()
 
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "distributor login successful", "token": token})
 }
