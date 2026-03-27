@@ -57,8 +57,8 @@ func (eh *ElectricityBillHandler) HandleCreateElectricityBill(w http.ResponseWri
 	}
 
 	eb.TransactionStatus = finalStatus
-	eb.OrderID = orderID
-	eb.OperatorTransactionID = operatorTxnID
+	eb.OrderID = &orderID
+	eb.OperatorTransactionID = &operatorTxnID
 
 	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{
 		"message":      "electricity bill payment processed",
@@ -153,8 +153,8 @@ func (eh *ElectricityBillHandler) HandleCheckElectricityBillStatus(w http.Respon
 	}
 
 	eb.TransactionStatus = finalStatus
-	eb.OrderID = orderID
-	eb.OperatorTransactionID = operatorTxnID
+	eb.OrderID = &orderID
+	eb.OperatorTransactionID = &operatorTxnID
 
 	msg := "bill status updated"
 	if finalStatus == "PENDING" {

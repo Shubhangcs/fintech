@@ -57,8 +57,8 @@ func (dh *DTHRechargeHandler) HandleCreateDTHRecharge(w http.ResponseWriter, r *
 	}
 
 	dr.Status = finalStatus
-	dr.OrderID = orderID
-	dr.OperatorTransactionID = operatorTxnID
+	dr.OrderID = &orderID
+	dr.OperatorTransactionID = &operatorTxnID
 	utils.WriteJSON(w, http.StatusCreated, utils.Envelope{
 		"message":      "dth recharge processed",
 		"recharge":     dr,
@@ -149,8 +149,8 @@ func (dh *DTHRechargeHandler) HandleCheckDTHRechargeStatus(w http.ResponseWriter
 	}
 
 	dr.Status = finalStatus
-	dr.OrderID = orderID
-	dr.OperatorTransactionID = operatorTxnID
+	dr.OrderID = &orderID
+	dr.OperatorTransactionID = &operatorTxnID
 
 	msg := "recharge status updated"
 	if finalStatus == "PENDING" {

@@ -8,8 +8,8 @@ import (
 type ElectricityBillModel struct {
 	ElectricityBillTransactionID int64     `json:"electricity_bill_transaction_id"`
 	RetailerID                   string    `json:"retailer_id"`
-	OrderID                      string    `json:"order_id"`
-	OperatorTransactionID        string    `json:"operator_transaction_id"`
+	OrderID                      *string   `json:"order_id"`
+	OperatorTransactionID        *string   `json:"operator_transaction_id"`
 	PartnerRequestID             string    `json:"partner_request_id"`
 	CustomerID                   string    `json:"customer_id"`
 	Amount                       float64   `json:"amount"`
