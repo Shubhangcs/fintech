@@ -33,6 +33,7 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 	dthRechargeRoutes(router, app)
 	electricityBillRoutes(router, app)
 	loginActivityRoutes(router, app)
+	busRoutes(router, app)
 
 	return router
 }
@@ -318,6 +319,17 @@ func electricityBillRoutes(router *chi.Mux, app *app.Application) {
 		r.Put("/operators/{id}", app.ElectricityBillHandler.HandleUpdateElectricityOperator)
 		r.Delete("/operators/{id}", app.ElectricityBillHandler.HandleDeleteElectricityOperator)
 		r.Get("/operators", app.ElectricityBillHandler.HandleGetElectricityOperators)
+	})
+}
+
+func busRoutes(router *chi.Mux, app *app.Application) {
+	router.Route("/bus", func(r chi.Router) {
+		// r.Use(middlewares.AuthorizationMiddleware)
+
+		r.Post("/stations", app.BusHandler.HandleGetBusStations)
+		r.Get("/operators", app.BusHandler.HandleGetBusOperators)
+		r.Get("/available-services", app.BusHandler.HandleGetAvailableServices)
+		r.Get("/seat-map", app.BusHandler.HandleGetServiceSeatingLayout)
 	})
 }
 
