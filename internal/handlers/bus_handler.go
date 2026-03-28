@@ -24,7 +24,7 @@ func (bh *BusHandler) busAuthHeader() string {
 // GET /bus/stations
 func (bh *BusHandler) HandleGetBusStations(w http.ResponseWriter, r *http.Request) {
 	var resp json.RawMessage
-	err := utils.PostRequest(utils.RechargeKitAPI2+"/bus/stations", "Authorization", bh.busAuthHeader(), map[string]any{}, &resp)
+	err := utils.GetRequest(utils.RechargeKitAPI1+"/bus/stations", "Authorization", bh.busAuthHeader(), &resp)
 	if err != nil {
 		utils.ServerError(w, bh.logger, "get bus stations", err)
 		return
