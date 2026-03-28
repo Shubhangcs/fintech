@@ -24,7 +24,7 @@ func (bh *BusHandler) busAuthHeader() string {
 // GET /bus/stations
 func (bh *BusHandler) HandleGetBusStations(w http.ResponseWriter, r *http.Request) {
 	var resp json.RawMessage
-	err := utils.PostRequest(utils.RechargeKitAPI1+"/bus/stations", "Authorization", bh.busAuthHeader(), map[string]any{}, &resp)
+	err := utils.PostRequest(utils.RechargeKitAPI2+"/bus/stations", "Authorization", bh.busAuthHeader(), map[string]any{}, &resp)
 	if err != nil {
 		utils.ServerError(w, bh.logger, "get bus stations", err)
 		return
@@ -35,7 +35,7 @@ func (bh *BusHandler) HandleGetBusStations(w http.ResponseWriter, r *http.Reques
 // GET /bus/operators
 func (bh *BusHandler) HandleGetBusOperators(w http.ResponseWriter, r *http.Request) {
 	var resp json.RawMessage
-	err := utils.GetRequest(utils.RechargeKitAPI1+"/bus/operators", "Authorization", bh.busAuthHeader(), &resp)
+	err := utils.GetRequest(utils.RechargeKitAPI2+"/bus/operators", "Authorization", bh.busAuthHeader(), &resp)
 	if err != nil {
 		utils.ServerError(w, bh.logger, "get bus operators", err)
 		return
@@ -55,7 +55,7 @@ func (bh *BusHandler) HandleGetAvailableServices(w http.ResponseWriter, r *http.
 	}
 
 	url := fmt.Sprintf("%s/bus/searchService?sourceStationId=%s&destinationStationId=%s&journeyDate=%s",
-		utils.RechargeKitAPI1, sourceStationID, destinationStationID, journeyDate)
+		utils.RechargeKitAPI2, sourceStationID, destinationStationID, journeyDate)
 
 	var resp json.RawMessage
 	err := utils.GetRequest(url, "Authorization", bh.busAuthHeader(), &resp)
@@ -80,7 +80,7 @@ func (bh *BusHandler) HandleGetServiceSeatingLayout(w http.ResponseWriter, r *ht
 	}
 
 	url := fmt.Sprintf("%s/bus/seatMap?operatorId=%s&serviceId=%s&sourceStationId=%s&destinationStationId=%s&journeyDate=%s",
-		utils.RechargeKitAPI1, operatorID, serviceID, sourceStationID, destinationStationID, journeyDate)
+		utils.RechargeKitAPI2, operatorID, serviceID, sourceStationID, destinationStationID, journeyDate)
 
 	var resp json.RawMessage
 	err := utils.GetRequest(url, "Authorization", bh.busAuthHeader(), &resp)
