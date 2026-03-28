@@ -184,7 +184,7 @@ func (ps *PostgresPayoutTransactionStore) FinalizePayout(payoutTransactionID, or
 		    operator_transaction_id   = $3,
 		    payout_transaction_status = $4,
 		    updated_at                = CURRENT_TIMESTAMP
-		WHERE payout_transaction_id = $1 AND payout_transaction_status = 'PENDING'
+		WHERE payout_transaction_id = $1
 	`, payoutTransactionID, orderID, operatorTransactionID, status)
 	if err != nil {
 		return err
