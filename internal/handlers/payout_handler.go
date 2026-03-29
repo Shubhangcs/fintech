@@ -146,13 +146,13 @@ func (ph *PayoutHandler) HandleCheckPayoutStatus(w http.ResponseWriter, r *http.
 	}
 
 	// If already finalized, return current record without calling the API
-	if pt.PayoutTransactionStatus != "PENDING" {
-		utils.WriteJSON(w, http.StatusOK, utils.Envelope{
-			"message":            "payout already finalized",
-			"payout_transaction": pt,
-		})
-		return
-	}
+	// if pt.PayoutTransactionStatus != "PENDING" {
+	// 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{
+	// 		"message":            "payout already finalized",
+	// 		"payout_transaction": pt,
+	// 	})
+	// 	return
+	// }
 
 	apiResp, finalStatus, orderID, operatorTxnID := callPayoutStatusAPI(ph.logger, pt.PartnerRequestID, pt.PayoutTransactionID)
 
