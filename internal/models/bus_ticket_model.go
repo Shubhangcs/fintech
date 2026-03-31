@@ -35,8 +35,8 @@ type BusSeatingLayoutRequestModel struct {
 }
 
 type BusAvailableServiceRequestModel struct {
-	SourceStationID      int    `json:"source_station_id"`
-	DestinationStationID int    `json:"destination_station_id"`
+	SourceStationID      string `json:"source_station_id"`
+	DestinationStationID string `json:"destination_station_id"`
 	JourneyDate          string `json:"journey_date"`
 }
 

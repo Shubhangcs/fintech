@@ -53,14 +53,14 @@ func (bh *BusHandler) HandleGetAvailableServices(w http.ResponseWriter, r *http.
 		return
 	}
 
-	if req.JourneyDate == "" {
+	if req.SourceStationID == "" || req.DestinationStationID == "" || req.JourneyDate == "" {
 		utils.BadRequest(w, bh.logger, "get available bus services", fmt.Errorf("sourceStation_Id, destinationStationId and journeyDate are required"))
 		return
 	}
 
 	var resp json.RawMessage
 	err := utils.PostRequest(utils.RechargeKitAPI2+"/bus/searchService", "Authorization", bh.busAuthHeader(), map[string]any{
-		"sourceStation_Id":     req.SourceStationID,
+		"sourceStationId":      req.SourceStationID,
 		"destinationStationId": req.DestinationStationID,
 		"journeyDate":          req.JourneyDate,
 	}, &resp)
