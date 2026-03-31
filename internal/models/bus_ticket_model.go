@@ -19,7 +19,7 @@ type BusOperatorResponseModel struct {
 
 type BusOperatorModel struct {
 	OperatorID          string `json:"operator_id"`
-	OperatorName        string `json:"optransid"`
+	OperatorName        string `json:"operater_name"`
 	PartialCancellation string `json:"partialCancellation"`
 }
 
