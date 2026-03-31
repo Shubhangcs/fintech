@@ -31,7 +31,7 @@ func (bh *BusHandler) HandleGetBusStations(w http.ResponseWriter, r *http.Reques
 		utils.ServerError(w, bh.logger, "get bus stations", err)
 		return
 	}
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": resp})
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"response": resp})
 }
 
 // GET /bus/operators
@@ -42,7 +42,7 @@ func (bh *BusHandler) HandleGetBusOperators(w http.ResponseWriter, r *http.Reque
 		utils.ServerError(w, bh.logger, "get bus operators", err)
 		return
 	}
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": resp})
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"response": resp})
 }
 
 // POST /bus/available-services
@@ -68,7 +68,7 @@ func (bh *BusHandler) HandleGetAvailableServices(w http.ResponseWriter, r *http.
 		utils.ServerError(w, bh.logger, "get available bus services", err)
 		return
 	}
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": resp})
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"response": resp})
 }
 
 // POST /bus/seat-map
@@ -79,7 +79,7 @@ func (bh *BusHandler) HandleGetServiceSeatingLayout(w http.ResponseWriter, r *ht
 		return
 	}
 	req.PartnerRequestID = uuid.NewString()
-	
+
 	if req.OperatorID == 0 || req.ServiceID == "" || req.SourceStationID == 0 || req.DestinationStationID == 0 || req.JourneyDate == "" {
 		utils.BadRequest(w, bh.logger, "get bus seating layout", fmt.Errorf("operator_Id, service_Id, sourceStation_Id, destinationStation_Id and journeyDate are required"))
 		return
@@ -100,5 +100,5 @@ func (bh *BusHandler) HandleGetServiceSeatingLayout(w http.ResponseWriter, r *ht
 		utils.ServerError(w, bh.logger, "get bus seating layout", err)
 		return
 	}
-	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"data": resp})
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"response": resp})
 }
