@@ -326,10 +326,10 @@ func busRoutes(router *chi.Mux, app *app.Application) {
 	router.Route("/bus", func(r chi.Router) {
 		// r.Use(middlewares.AuthorizationMiddleware)
 
-		r.Post("/stations", app.BusHandler.HandleGetBusStations)
+		r.Get("/stations", app.BusHandler.HandleGetBusStations)
 		r.Get("/operators", app.BusHandler.HandleGetBusOperators)
-		r.Get("/available-services", app.BusHandler.HandleGetAvailableServices)
-		r.Get("/seat-map", app.BusHandler.HandleGetServiceSeatingLayout)
+		r.Post("/available-services", app.BusHandler.HandleGetAvailableServices)
+		r.Post("/seat-map", app.BusHandler.HandleGetServiceSeatingLayout)
 	})
 }
 
