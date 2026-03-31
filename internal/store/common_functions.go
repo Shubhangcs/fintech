@@ -12,6 +12,7 @@ type userTableInfo struct {
 	TableName               string
 	IDColumnName            string
 	WalletBalanceColumnName string
+	HoldAmountColumnName    string
 }
 
 type transaction struct {
@@ -31,11 +32,11 @@ func getUserTableInfo(id string) (*userTableInfo, error) {
 	case "A":
 		return &userTableInfo{TableName: "admins", IDColumnName: "admin_id", WalletBalanceColumnName: "admin_wallet_balance"}, nil
 	case "M":
-		return &userTableInfo{TableName: "master_distributors", IDColumnName: "master_distributor_id", WalletBalanceColumnName: "master_distributor_wallet_balance"}, nil
+		return &userTableInfo{TableName: "master_distributors", IDColumnName: "master_distributor_id", WalletBalanceColumnName: "master_distributor_wallet_balance", HoldAmountColumnName: "hold_amount"}, nil
 	case "D":
-		return &userTableInfo{TableName: "distributors", IDColumnName: "distributor_id", WalletBalanceColumnName: "distributor_wallet_balance"}, nil
+		return &userTableInfo{TableName: "distributors", IDColumnName: "distributor_id", WalletBalanceColumnName: "distributor_wallet_balance", HoldAmountColumnName: "hold_amount"}, nil
 	case "R":
-		return &userTableInfo{TableName: "retailers", IDColumnName: "retailer_id", WalletBalanceColumnName: "retailer_wallet_balance"}, nil
+		return &userTableInfo{TableName: "retailers", IDColumnName: "retailer_id", WalletBalanceColumnName: "retailer_wallet_balance", HoldAmountColumnName: "hold_amount"}, nil
 	default:
 		return nil, errors.New("invalid user id")
 	}
@@ -75,15 +76,28 @@ func debitTx(tx *sql.Tx, txn transaction, wts WalletTransactionStore) error {
 	if txn.Amount <= 0 {
 		return nil
 	}
-	q := fmt.Sprintf(
-		`UPDATE %s SET %s = %s - $1, updated_at = CURRENT_TIMESTAMP
-		 WHERE %s = $2 AND %s >= $1
-		 RETURNING %s + $1, %s;`,
-		txn.TableName, txn.WalletBalanceColumnName,
-		txn.WalletBalanceColumnName, txn.IDColumnName,
-		txn.WalletBalanceColumnName, txn.WalletBalanceColumnName,
-		txn.WalletBalanceColumnName,
-	)
+	var q string
+	if txn.HoldAmountColumnName != "" {
+		q = fmt.Sprintf(
+			`UPDATE %s SET %s = %s - $1, updated_at = CURRENT_TIMESTAMP
+			 WHERE %s = $2 AND %s - $1 >= %s
+			 RETURNING %s + $1, %s;`,
+			txn.TableName, txn.WalletBalanceColumnName,
+			txn.WalletBalanceColumnName, txn.IDColumnName,
+			txn.WalletBalanceColumnName, txn.HoldAmountColumnName,
+			txn.WalletBalanceColumnName, txn.WalletBalanceColumnName,
+		)
+	} else {
+		q = fmt.Sprintf(
+			`UPDATE %s SET %s = %s - $1, updated_at = CURRENT_TIMESTAMP
+			 WHERE %s = $2 AND %s >= $1
+			 RETURNING %s + $1, %s;`,
+			txn.TableName, txn.WalletBalanceColumnName,
+			txn.WalletBalanceColumnName, txn.IDColumnName,
+			txn.WalletBalanceColumnName, txn.WalletBalanceColumnName,
+			txn.WalletBalanceColumnName,
+		)
+	}
 	var before, after float64
 	err := tx.QueryRow(q, txn.Amount, txn.UserID).Scan(&before, &after)
 

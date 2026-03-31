@@ -14,17 +14,27 @@ import (
 
 type DTHRechargeHandler struct {
 	rechargeStore store.DTHRechargeStore
+	apiDownStore  store.ApiDownStore
 	logger        *slog.Logger
 }
 
-func NewDTHRechargeHandler(rechargeStore store.DTHRechargeStore, logger *slog.Logger) *DTHRechargeHandler {
+func NewDTHRechargeHandler(rechargeStore store.DTHRechargeStore, apiDownStore store.ApiDownStore, logger *slog.Logger) *DTHRechargeHandler {
 	return &DTHRechargeHandler{
 		rechargeStore: rechargeStore,
+		apiDownStore:  apiDownStore,
 		logger:        logger,
 	}
 }
 
 func (dh *DTHRechargeHandler) HandleCreateDTHRecharge(w http.ResponseWriter, r *http.Request) {
+	if down, err := dh.apiDownStore.IsServiceDown(models.ServiceDTHRecharge); err != nil {
+		utils.ServerError(w, dh.logger, "create dth recharge", err)
+		return
+	} else if down {
+		utils.BadRequest(w, dh.logger, "create dth recharge", errors.New("DTH recharge service is currently unavailable"))
+		return
+	}
+
 	var dr models.DTHRechargeModel
 	if err := json.NewDecoder(r.Body).Decode(&dr); err != nil {
 		utils.BadRequest(w, dh.logger, "create dth recharge", err)

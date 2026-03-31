@@ -469,3 +469,31 @@ func (dh *DistributorHandler) HandleGetDistributorWalletBalance(w http.ResponseW
 	}
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "distributor wallet balance fetched successfully", "balance": balance})
 }
+
+func (dh *DistributorHandler) HandleUpdateDistributorHoldAmount(w http.ResponseWriter, r *http.Request) {
+	id, err := utils.ReadParamID(r)
+	if err != nil {
+		utils.BadRequest(w, dh.logger, "update distributor hold amount", err)
+		return
+	}
+	var req struct {
+		HoldAmount float64 `json:"hold_amount"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.BadRequest(w, dh.logger, "update distributor hold amount", err)
+		return
+	}
+	if req.HoldAmount < 0 {
+		utils.BadRequest(w, dh.logger, "update distributor hold amount", fmt.Errorf("hold_amount cannot be negative"))
+		return
+	}
+	if err := dh.distributorStore.UpdateDistributorHoldAmount(id, req.HoldAmount); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			utils.BadRequest(w, dh.logger, "update distributor hold amount", errors.New("distributor not found"))
+			return
+		}
+		utils.ServerError(w, dh.logger, "update distributor hold amount", err)
+		return
+	}
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "distributor hold amount updated successfully"})
+}

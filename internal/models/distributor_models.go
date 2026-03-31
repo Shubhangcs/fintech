@@ -28,6 +28,7 @@ type DistributorModel struct {
 	DistributorMpin          int       `json:"distributor_mpin"`
 	DistributorKYCStatus     bool      `json:"distributor_kyc_status"`
 	DistributorWalletBalance float64   `json:"distributor_wallet_balance"`
+	HoldAmount               float64   `json:"hold_amount"`
 	DistributorAadharImage   *string   `json:"distributor_aadhar_image"`
 	DistributorPanImage      *string   `json:"distributor_pan_image"`
 	DistributorImage         *string   `json:"distributor_image"`

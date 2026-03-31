@@ -343,6 +343,34 @@ func (mh *MasterDistributorHandler) HandleGetMasterDistributorWalletBalance(w ht
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "master distributor wallet balance fetched successfully", "balance": balance})
 }
 
+func (mh *MasterDistributorHandler) HandleUpdateMasterDistributorHoldAmount(w http.ResponseWriter, r *http.Request) {
+	id, err := utils.ReadParamID(r)
+	if err != nil {
+		utils.BadRequest(w, mh.logger, "update master distributor hold amount", err)
+		return
+	}
+	var req struct {
+		HoldAmount float64 `json:"hold_amount"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.BadRequest(w, mh.logger, "update master distributor hold amount", err)
+		return
+	}
+	if req.HoldAmount < 0 {
+		utils.BadRequest(w, mh.logger, "update master distributor hold amount", fmt.Errorf("hold_amount cannot be negative"))
+		return
+	}
+	if err := mh.mdStore.UpdateMasterDistributorHoldAmount(id, req.HoldAmount); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			utils.BadRequest(w, mh.logger, "update master distributor hold amount", errors.New("master distributor not found"))
+			return
+		}
+		utils.ServerError(w, mh.logger, "update master distributor hold amount", err)
+		return
+	}
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "master distributor hold amount updated successfully"})
+}
+
 // Update Master Distributor Aadhar Image
 func (mh *MasterDistributorHandler) HandleUpdateMasterDistributorAadharImage(w http.ResponseWriter, r *http.Request) {
 	id, err := utils.ReadParamID(r)

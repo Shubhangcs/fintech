@@ -28,6 +28,7 @@ type MasterDistributorModel struct {
 	MasterDistributorKYCStatus     bool      `json:"master_distributor_kyc_status"`
 	MasterDistributorGSTNumber     *string   `json:"master_distributor_gst_number"`
 	MasterDistributorWalletBalance float64   `json:"master_distributor_wallet_balance"`
+	HoldAmount                     float64   `json:"hold_amount"`
 	IsMasterDistributorBlocked     bool      `json:"is_master_distributor_blocked"`
 	MasterDistributorAadharImage   *string   `json:"master_distributor_aadhar_image"`
 	MasterDistributorPanImage      *string   `json:"master_distributor_pan_image"`

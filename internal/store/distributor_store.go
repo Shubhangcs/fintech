@@ -34,6 +34,7 @@ type DistributorStore interface {
 	UpdateDistributorPanImage(path, id string) error
 	UpdateDistributorImage(path, id string) error
 	GetDistributorWalletBalance(id string) (float64, error)
+	UpdateDistributorHoldAmount(id string, amount float64) error
 }
 
 // Create Distributor
@@ -221,6 +222,7 @@ func (ds *PostgresDistributorStore) GetDistributorByID(id string) (*models.Distr
 		distributor_gst_number,
 		distributor_kyc_status,
 		distributor_wallet_balance,
+		hold_amount,
 		is_distributor_blocked,
 		distributor_aadhar_image,
 		distributor_pan_image,
@@ -253,6 +255,7 @@ func (ds *PostgresDistributorStore) GetDistributorByID(id string) (*models.Distr
 		&d.DistributorGSTNumber,
 		&d.DistributorKYCStatus,
 		&d.DistributorWalletBalance,
+		&d.HoldAmount,
 		&d.IsDistributorBlocked,
 		&d.DistributorAadharImage,
 		&d.DistributorPanImage,
@@ -288,6 +291,7 @@ func (ds *PostgresDistributorStore) GetDistributorsByMasterDistributorID(masterD
 		distributor_gst_number,
 		distributor_kyc_status,
 		distributor_wallet_balance,
+		hold_amount,
 		is_distributor_blocked,
 		distributor_aadhar_image,
 		distributor_pan_image,
@@ -327,6 +331,7 @@ func (ds *PostgresDistributorStore) GetDistributorsByAdminID(adminID string, lim
 		d.distributor_gst_number,
 		d.distributor_kyc_status,
 		d.distributor_wallet_balance,
+		d.hold_amount,
 		d.is_distributor_blocked,
 		d.distributor_aadhar_image,
 		d.distributor_pan_image,
@@ -438,6 +443,7 @@ func scanDistributors(db *sql.DB, query string, args ...any) ([]models.Distribut
 			&d.DistributorGSTNumber,
 			&d.DistributorKYCStatus,
 			&d.DistributorWalletBalance,
+			&d.HoldAmount,
 			&d.IsDistributorBlocked,
 			&d.DistributorAadharImage,
 			&d.DistributorPanImage,
@@ -535,4 +541,15 @@ func (ds *PostgresDistributorStore) GetDistributorWalletBalance(id string) (floa
 	)
 
 	return balance, err
+}
+
+func (ds *PostgresDistributorStore) UpdateDistributorHoldAmount(id string, amount float64) error {
+	res, err := ds.db.Exec(
+		`UPDATE distributors SET hold_amount = $1, updated_at = CURRENT_TIMESTAMP WHERE distributor_id = $2`,
+		amount, id,
+	)
+	if err != nil {
+		return err
+	}
+	return checkRowsAffected(res)
 }

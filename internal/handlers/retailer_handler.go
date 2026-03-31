@@ -506,3 +506,31 @@ func (rh *RetailerHandler) HandleGetRetailerWalletBalance(w http.ResponseWriter,
 
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "retailer wallet balance fetched successfully", "balance": balance})
 }
+
+func (rh *RetailerHandler) HandleUpdateRetailerHoldAmount(w http.ResponseWriter, r *http.Request) {
+	id, err := utils.ReadParamID(r)
+	if err != nil {
+		utils.BadRequest(w, rh.logger, "update retailer hold amount", err)
+		return
+	}
+	var req struct {
+		HoldAmount float64 `json:"hold_amount"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.BadRequest(w, rh.logger, "update retailer hold amount", err)
+		return
+	}
+	if req.HoldAmount < 0 {
+		utils.BadRequest(w, rh.logger, "update retailer hold amount", fmt.Errorf("hold_amount cannot be negative"))
+		return
+	}
+	if err := rh.retailerStore.UpdateRetailerHoldAmount(id, req.HoldAmount); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			utils.BadRequest(w, rh.logger, "update retailer hold amount", errors.New("retailer not found"))
+			return
+		}
+		utils.ServerError(w, rh.logger, "update retailer hold amount", err)
+		return
+	}
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"message": "retailer hold amount updated successfully"})
+}

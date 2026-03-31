@@ -28,6 +28,7 @@ type RetailerModel struct {
 	RetailerMpin          int       `json:"retailer_mpin"`
 	RetailerKYCStatus     bool      `json:"retailer_kyc_status"`
 	RetailerWalletBalance float64   `json:"retailer_wallet_balance"`
+	HoldAmount            float64   `json:"hold_amount"`
 	IsRetailerBlocked     bool      `json:"is_retailer_blocked"`
 	RetailerAadharImage   *string   `json:"retailer_aadhar_image"`
 	RetailerPanImage      *string   `json:"retailer_pan_image"`

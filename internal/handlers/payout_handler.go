@@ -13,12 +13,13 @@ import (
 )
 
 type PayoutHandler struct {
-	payoutStore store.PayoutTransactionStore
-	logger      *slog.Logger
+	payoutStore  store.PayoutTransactionStore
+	apiDownStore store.ApiDownStore
+	logger       *slog.Logger
 }
 
-func NewPayoutHandler(payoutStore store.PayoutTransactionStore, logger *slog.Logger) *PayoutHandler {
-	return &PayoutHandler{payoutStore: payoutStore, logger: logger}
+func NewPayoutHandler(payoutStore store.PayoutTransactionStore, apiDownStore store.ApiDownStore, logger *slog.Logger) *PayoutHandler {
+	return &PayoutHandler{payoutStore: payoutStore, apiDownStore: apiDownStore, logger: logger}
 }
 
 func mapAPIStatus(status int) string {
@@ -33,6 +34,14 @@ func mapAPIStatus(status int) string {
 }
 
 func (ph *PayoutHandler) HandleCreatePayoutTransaction(w http.ResponseWriter, r *http.Request) {
+	if down, err := ph.apiDownStore.IsServiceDown(models.ServicePayout); err != nil {
+		utils.ServerError(w, ph.logger, "create payout transaction", err)
+		return
+	} else if down {
+		utils.BadRequest(w, ph.logger, "create payout transaction", errors.New("payout service is currently unavailable"))
+		return
+	}
+
 	var req models.PayoutTransactionModel
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.BadRequest(w, ph.logger, "create payout transaction", err)

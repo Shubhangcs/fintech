@@ -15,17 +15,27 @@ import (
 
 type MobileRechargeHandler struct {
 	rechargeStore store.MobileRechargeStore
+	apiDownStore  store.ApiDownStore
 	logger        *slog.Logger
 }
 
-func NewMobileRechargeHandler(rechargeStore store.MobileRechargeStore, logger *slog.Logger) *MobileRechargeHandler {
+func NewMobileRechargeHandler(rechargeStore store.MobileRechargeStore, apiDownStore store.ApiDownStore, logger *slog.Logger) *MobileRechargeHandler {
 	return &MobileRechargeHandler{
 		rechargeStore: rechargeStore,
+		apiDownStore:  apiDownStore,
 		logger:        logger,
 	}
 }
 
 func (mh *MobileRechargeHandler) HandleCreateMobileRecharge(w http.ResponseWriter, r *http.Request) {
+	if down, err := mh.apiDownStore.IsServiceDown(models.ServiceMobileRecharge); err != nil {
+		utils.ServerError(w, mh.logger, "create mobile recharge", err)
+		return
+	} else if down {
+		utils.BadRequest(w, mh.logger, "create mobile recharge", errors.New("mobile recharge service is currently unavailable"))
+		return
+	}
+
 	var mr models.MobileRechargeModel
 	if err := json.NewDecoder(r.Body).Decode(&mr); err != nil {
 		utils.BadRequest(w, mh.logger, "create mobile recharge", err)

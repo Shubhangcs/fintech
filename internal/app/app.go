@@ -14,6 +14,7 @@ import (
 type Application struct {
 	Logger                   *slog.Logger
 	DB                       *sql.DB
+	ApiDownHandler           *handlers.ApiDownHandler
 	AdminHandler             *handlers.AdminHandler
 	MasterDistributorHandler *handlers.MasterDistributorHandler
 	DistributorHandler       *handlers.DistributorHandler
@@ -67,8 +68,10 @@ func NewApplication() (*Application, error) {
 	dthRechargeStore := store.NewPostgresDTHRechargeStore(pgdb, walletTransactionStore)
 	electricityBillStore := store.NewPostgresElectricityBillStore(pgdb, walletTransactionStore)
 	loginActivityStore := store.NewPostgresLoginActivityStore(pgdb)
+	apiDownStore := store.NewPostgresApiDownStore(pgdb)
 
 	// Handlers
+	apiDownHandler := handlers.NewApiDownHandler(apiDownStore, logger)
 	adminHandler := handlers.NewAdminHandler(adminStore, walletTransactionStore, loginActivityStore, logger)
 	mdHandler := handlers.NewMasterDistributorHandler(mdStore, loginActivityStore, logger, awss3)
 	distributorHandler := handlers.NewDistributorHandler(distributorStore, loginActivityStore, logger, awss3)
@@ -82,16 +85,17 @@ func NewApplication() (*Application, error) {
 	ticketHandler := handlers.NewTicketHandler(ticketStore, logger)
 	beneficiaryHandler := handlers.NewBeneficiaryHandler(beneficiaryStore, logger)
 	revertTransactionHandler := handlers.NewRevertTransactionHandler(revertTransactionStore, logger)
-	payoutHandler := handlers.NewPayoutHandler(payoutTransactionStore, logger)
-	mobileRechargeHandler := handlers.NewMobileRechargeHandler(mobileRechargeStore, logger)
-	dthRechargeHandler := handlers.NewDTHRechargeHandler(dthRechargeStore, logger)
-	electricityBillHandler := handlers.NewElectricityBillHandler(electricityBillStore, logger)
+	payoutHandler := handlers.NewPayoutHandler(payoutTransactionStore, apiDownStore, logger)
+	mobileRechargeHandler := handlers.NewMobileRechargeHandler(mobileRechargeStore, apiDownStore, logger)
+	dthRechargeHandler := handlers.NewDTHRechargeHandler(dthRechargeStore, apiDownStore, logger)
+	electricityBillHandler := handlers.NewElectricityBillHandler(electricityBillStore, apiDownStore, logger)
 	loginActivityHandler := handlers.NewLoginActivityHandler(loginActivityStore, logger)
-	busHandler := handlers.NewBusHandler(logger)
+	busHandler := handlers.NewBusHandler(apiDownStore, logger)
 
 	return &Application{
 		Logger:                   logger,
 		DB:                       pgdb,
+		ApiDownHandler:           apiDownHandler,
 		AdminHandler:             adminHandler,
 		MasterDistributorHandler: mdHandler,
 		DistributorHandler:       distributorHandler,

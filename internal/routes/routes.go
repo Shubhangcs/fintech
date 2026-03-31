@@ -34,6 +34,7 @@ func SetupRoutes(app *app.Application) *chi.Mux {
 	electricityBillRoutes(router, app)
 	loginActivityRoutes(router, app)
 	busRoutes(router, app)
+	apiDownRoutes(router, app)
 
 	return router
 }
@@ -79,6 +80,7 @@ func masterDistributorRoutes(router *chi.Mux, app *app.Application) {
 		r.Patch("/update/{id}/aadhar", app.MasterDistributorHandler.HandleUpdateMasterDistributorAadharImage)
 		r.Patch("/update/{id}/pan", app.MasterDistributorHandler.HandleUpdateMasterDistributorPanImage)
 		r.Patch("/update/{id}/image", app.MasterDistributorHandler.HandleUpdateMasterDistributorImage)
+		r.Patch("/update/{id}/hold-amount", app.MasterDistributorHandler.HandleUpdateMasterDistributorHoldAmount)
 		r.Delete("/delete/{id}", app.MasterDistributorHandler.HandleDeleteMasterDistributor)
 	})
 }
@@ -108,6 +110,7 @@ func retailerRoutes(router *chi.Mux, app *app.Application) {
 		r.Patch("/update/{id}/aadhar", app.RetailerHandler.HandleUpdateRetailerAadharImage)
 		r.Patch("/update/{id}/pan", app.RetailerHandler.HandleUpdateRetailerPanImage)
 		r.Patch("/update/{id}/image", app.RetailerHandler.HandleUpdateRetailerImage)
+		r.Patch("/update/{id}/hold-amount", app.RetailerHandler.HandleUpdateRetailerHoldAmount)
 		r.Delete("/delete/{id}", app.RetailerHandler.HandleDeleteRetailer)
 	})
 }
@@ -135,6 +138,7 @@ func distributorRoutes(router *chi.Mux, app *app.Application) {
 		r.Patch("/update/{id}/aadhar", app.DistributorHandler.HandleUpdateDistributorAadharImage)
 		r.Patch("/update/{id}/pan", app.DistributorHandler.HandleUpdateDistributorPanImage)
 		r.Patch("/update/{id}/image", app.DistributorHandler.HandleUpdateDistributorImage)
+		r.Patch("/update/{id}/hold-amount", app.DistributorHandler.HandleUpdateDistributorHoldAmount)
 		r.Delete("/delete/{id}", app.DistributorHandler.HandleDeleteDistributor)
 	})
 }
@@ -368,5 +372,14 @@ func mobileRechargeRoutes(router *chi.Mux, app *app.Application) {
 		r.Put("/operators/{id}", app.MobileRechargeHandler.HandleUpdateMobileRechargeOperator)
 		r.Delete("/operators/{id}", app.MobileRechargeHandler.HandleDeleteMobileRechargeOperator)
 		r.Get("/operators", app.MobileRechargeHandler.HandleGetMobileRechargeOperators)
+	})
+}
+
+func apiDownRoutes(router *chi.Mux, app *app.Application) {
+	router.Route("/api-down", func(r chi.Router) {
+		r.Use(middlewares.AuthorizationMiddleware)
+
+		r.Get("/", app.ApiDownHandler.HandleGetAllServiceStatuses)
+		r.Patch("/{service_name}", app.ApiDownHandler.HandleUpdateServiceStatus)
 	})
 }

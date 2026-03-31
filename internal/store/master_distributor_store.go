@@ -28,6 +28,7 @@ type MasterDistributorStore interface {
 	GetMasterDistributorsByAdminIDForDropdown(adminID string) ([]models.DropdownItem, error)
 	DeleteMasterDistributor(id string) error
 	GetMasterDistributorWalletBalance(id string) (float64, error)
+	UpdateMasterDistributorHoldAmount(id string, amount float64) error
 	UpdateMasterDistributorAadharImage(path, id string) error
 	UpdateMasterDistributorPanImage(path, id string) error
 	UpdateMasterDistributorImage(path, id string) error
@@ -218,6 +219,7 @@ func (ms *PostgresMasterDistributorStore) GetMasterDistributorByID(id string) (*
 		master_distributor_kyc_status,
 		master_distributor_gst_number,
 		master_distributor_wallet_balance,
+		hold_amount,
 		is_master_distributor_blocked,
 		master_distributor_aadhar_image,
 		master_distributor_pan_image,
@@ -250,6 +252,7 @@ func (ms *PostgresMasterDistributorStore) GetMasterDistributorByID(id string) (*
 		&md.MasterDistributorKYCStatus,
 		&md.MasterDistributorGSTNumber,
 		&md.MasterDistributorWalletBalance,
+		&md.HoldAmount,
 		&md.IsMasterDistributorBlocked,
 		&md.MasterDistributorAadharImage,
 		&md.MasterDistributorPanImage,
@@ -285,6 +288,7 @@ func (ms *PostgresMasterDistributorStore) GetMasterDistributorsByAdminID(adminID
 		master_distributor_kyc_status,
 		master_distributor_gst_number,
 		master_distributor_wallet_balance,
+		hold_amount,
 		is_master_distributor_blocked,
 		master_distributor_aadhar_image,
 		master_distributor_pan_image,
@@ -330,6 +334,7 @@ func (ms *PostgresMasterDistributorStore) GetMasterDistributorsByAdminID(adminID
 			&md.MasterDistributorKYCStatus,
 			&md.MasterDistributorGSTNumber,
 			&md.MasterDistributorWalletBalance,
+			&md.HoldAmount,
 			&md.IsMasterDistributorBlocked,
 			&md.MasterDistributorAadharImage,
 			&md.MasterDistributorPanImage,
@@ -398,7 +403,7 @@ func (ms *PostgresMasterDistributorStore) DeleteMasterDistributor(id string) err
 // Get Master Distributor Wallet Balance
 func (ms *PostgresMasterDistributorStore) GetMasterDistributorWalletBalance(id string) (float64, error) {
 	query := `
-		SELECT 
+		SELECT
 			master_distributor_wallet_balance
 		FROM master_distributors
 		WHERE master_distributor_id = $1;
@@ -412,6 +417,17 @@ func (ms *PostgresMasterDistributorStore) GetMasterDistributorWalletBalance(id s
 	)
 
 	return balance, err
+}
+
+func (ms *PostgresMasterDistributorStore) UpdateMasterDistributorHoldAmount(id string, amount float64) error {
+	res, err := ms.db.Exec(
+		`UPDATE master_distributors SET hold_amount = $1, updated_at = CURRENT_TIMESTAMP WHERE master_distributor_id = $2`,
+		amount, id,
+	)
+	if err != nil {
+		return err
+	}
+	return checkRowsAffected(res)
 }
 
 // Update Master Distributor Aadhar Image

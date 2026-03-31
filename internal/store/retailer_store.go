@@ -36,6 +36,7 @@ type RetailerStore interface {
 	UpdateRetailerPanImage(path, id string) error
 	UpdateRetailerImage(path, id string) error
 	GetRetailerWalletBalance(id string) (float64, error)
+	UpdateRetailerHoldAmount(id string, amount float64) error
 }
 
 // Create Retailer
@@ -223,6 +224,7 @@ func (rs *PostgresRetailerStore) GetRetailerByID(id string) (*models.RetailerMod
 		retailer_gst_number,
 		retailer_kyc_status,
 		retailer_wallet_balance,
+		hold_amount,
 		is_retailer_blocked,
 		retailer_aadhar_image,
 		retailer_pan_image,
@@ -255,6 +257,7 @@ func (rs *PostgresRetailerStore) GetRetailerByID(id string) (*models.RetailerMod
 		&re.RetailerGSTNumber,
 		&re.RetailerKYCStatus,
 		&re.RetailerWalletBalance,
+		&re.HoldAmount,
 		&re.IsRetailerBlocked,
 		&re.RetailerAadharImage,
 		&re.RetailerPanImage,
@@ -275,7 +278,7 @@ func (rs *PostgresRetailerStore) GetRetailersByDistributorID(distributorID strin
 		retailer_aadhar_number, retailer_pan_number, retailer_date_of_birth, retailer_gender,
 		retailer_city, retailer_state, retailer_address, retailer_pincode,
 		retailer_business_name, retailer_business_type, retailer_gst_number,
-		retailer_kyc_status, retailer_wallet_balance,
+		retailer_kyc_status, retailer_wallet_balance, hold_amount,
 		is_retailer_blocked, retailer_aadhar_image, retailer_pan_image,
 		retailer_image, created_at, updated_at
 	FROM retailers
@@ -296,7 +299,7 @@ func (rs *PostgresRetailerStore) GetRetailersByMasterDistributorID(masterDistrib
 		re.retailer_aadhar_number, re.retailer_pan_number, re.retailer_date_of_birth, re.retailer_gender,
 		re.retailer_city, re.retailer_state, re.retailer_address, re.retailer_pincode,
 		re.retailer_business_name, re.retailer_business_type, re.retailer_gst_number,
-		re.retailer_kyc_status, re.retailer_wallet_balance,
+		re.retailer_kyc_status, re.retailer_wallet_balance, re.hold_amount,
 		re.is_retailer_blocked, re.retailer_aadhar_image, re.retailer_pan_image,
 		re.retailer_image, re.created_at, re.updated_at
 	FROM retailers re
@@ -318,7 +321,7 @@ func (rs *PostgresRetailerStore) GetRetailersByAdminID(adminID string, limit, of
 		re.retailer_aadhar_number, re.retailer_pan_number, re.retailer_date_of_birth, re.retailer_gender,
 		re.retailer_city, re.retailer_state, re.retailer_address, re.retailer_pincode,
 		re.retailer_business_name, re.retailer_business_type, re.retailer_gst_number,
-		re.retailer_kyc_status, re.retailer_wallet_balance,
+		re.retailer_kyc_status, re.retailer_wallet_balance, re.hold_amount,
 		re.is_retailer_blocked, re.retailer_aadhar_image, re.retailer_pan_image,
 		re.retailer_image, re.created_at, re.updated_at
 	FROM retailers re
@@ -440,6 +443,7 @@ func scanRetailers(db *sql.DB, query string, args ...any) ([]models.RetailerMode
 			&re.RetailerGSTNumber,
 			&re.RetailerKYCStatus,
 			&re.RetailerWalletBalance,
+			&re.HoldAmount,
 			&re.IsRetailerBlocked,
 			&re.RetailerAadharImage,
 			&re.RetailerPanImage,
@@ -521,9 +525,9 @@ func (rs *PostgresRetailerStore) UpdateRetailerImage(path, id string) error {
 // Get Retailer Wallet Balance
 func (rs *PostgresRetailerStore) GetRetailerWalletBalance(id string) (float64, error) {
 	query := `
-		SELECT 
+		SELECT
 			retailer_wallet_balance
-		FROM retailers 
+		FROM retailers
 		WHERE retailer_id = $1;
 	`
 	var balance float64
@@ -534,4 +538,15 @@ func (rs *PostgresRetailerStore) GetRetailerWalletBalance(id string) (float64, e
 		&balance,
 	)
 	return balance, err
+}
+
+func (rs *PostgresRetailerStore) UpdateRetailerHoldAmount(id string, amount float64) error {
+	res, err := rs.db.Exec(
+		`UPDATE retailers SET hold_amount = $1, updated_at = CURRENT_TIMESTAMP WHERE retailer_id = $2`,
+		amount, id,
+	)
+	if err != nil {
+		return err
+	}
+	return checkRowsAffected(res)
 }

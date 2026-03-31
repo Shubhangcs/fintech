@@ -13,18 +13,28 @@ import (
 )
 
 type ElectricityBillHandler struct {
-	billStore store.ElectricityBillStore
-	logger    *slog.Logger
+	billStore    store.ElectricityBillStore
+	apiDownStore store.ApiDownStore
+	logger       *slog.Logger
 }
 
-func NewElectricityBillHandler(billStore store.ElectricityBillStore, logger *slog.Logger) *ElectricityBillHandler {
+func NewElectricityBillHandler(billStore store.ElectricityBillStore, apiDownStore store.ApiDownStore, logger *slog.Logger) *ElectricityBillHandler {
 	return &ElectricityBillHandler{
-		billStore: billStore,
-		logger:    logger,
+		billStore:    billStore,
+		apiDownStore: apiDownStore,
+		logger:       logger,
 	}
 }
 
 func (eh *ElectricityBillHandler) HandleCreateElectricityBill(w http.ResponseWriter, r *http.Request) {
+	if down, err := eh.apiDownStore.IsServiceDown(models.ServiceElectricityBill); err != nil {
+		utils.ServerError(w, eh.logger, "create electricity bill", err)
+		return
+	} else if down {
+		utils.BadRequest(w, eh.logger, "create electricity bill", errors.New("electricity bill service is currently unavailable"))
+		return
+	}
+
 	var eb models.ElectricityBillModel
 	if err := json.NewDecoder(r.Body).Decode(&eb); err != nil {
 		utils.BadRequest(w, eh.logger, "create electricity bill", err)

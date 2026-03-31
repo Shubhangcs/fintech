@@ -2,25 +2,36 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 
 	"github.com/google/uuid"
 	"github.com/levionstudio/fintech/internal/models"
+	"github.com/levionstudio/fintech/internal/store"
 	"github.com/levionstudio/fintech/internal/utils"
 )
 
 type BusHandler struct {
-	logger *slog.Logger
+	apiDownStore store.ApiDownStore
+	logger       *slog.Logger
 }
 
-func NewBusHandler(logger *slog.Logger) *BusHandler {
-	return &BusHandler{logger: logger}
+func NewBusHandler(apiDownStore store.ApiDownStore, logger *slog.Logger) *BusHandler {
+	return &BusHandler{apiDownStore: apiDownStore, logger: logger}
 }
 
 // POST /bus/block-tickets
 func (bh *BusHandler) HandleBlockBusTicket(w http.ResponseWriter, r *http.Request) {
+	if down, err := bh.apiDownStore.IsServiceDown(models.ServiceBusTicket); err != nil {
+		utils.ServerError(w, bh.logger, "block bus ticket", err)
+		return
+	} else if down {
+		utils.BadRequest(w, bh.logger, "block bus ticket", errors.New("bus ticket service is currently unavailable"))
+		return
+	}
+
 	var req models.BusBlockTicketRequestModel
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.BadRequest(w, bh.logger, "block bus ticket", err)
