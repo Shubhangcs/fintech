@@ -22,11 +22,15 @@ func NewPostgresLoginActivityStore(db *sql.DB) *PostgresLoginActivityStore {
 }
 
 func (ls *PostgresLoginActivityStore) CreateLoginActivity(activity models.LoginActivity) error {
+	var loginTimestamp *string
+	if activity.LoginTimestamp != "" {
+		loginTimestamp = &activity.LoginTimestamp
+	}
 	_, err := ls.db.Exec(`
 		INSERT INTO login_activities (user_id, user_agent, platform, latitude, longitude, accuracy, login_timestamp)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`, activity.UserID, activity.UserAgent, activity.Platform,
-		activity.Latitude, activity.Longitude, activity.Accuracy, activity.LoginTimestamp)
+		activity.Latitude, activity.Longitude, activity.Accuracy, loginTimestamp)
 	return err
 }
 
