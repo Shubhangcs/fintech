@@ -330,6 +330,7 @@ func busRoutes(router *chi.Mux, app *app.Application) {
 		r.Get("/operators", app.BusHandler.HandleGetBusOperators)
 		r.Post("/available-services", app.BusHandler.HandleGetAvailableServices)
 		r.Post("/seat-map", app.BusHandler.HandleGetServiceSeatingLayout)
+		r.Post("/block-tickets", app.BusHandler.HandleBlockBusTicket)
 	})
 }
 

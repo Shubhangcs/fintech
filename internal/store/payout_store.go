@@ -323,10 +323,18 @@ func (ps *PostgresPayoutTransactionStore) GetAllPayoutTransactions(p utils.Query
 	q := payoutSelectBase + `
 	WHERE pt.created_at >= COALESCE($3, '-infinity'::TIMESTAMPTZ)
 	AND pt.created_at <= COALESCE($4, 'infinity'::TIMESTAMPTZ)
+	AND ($5::TEXT IS NULL OR pt.payout_transaction_status = $5)
+	AND ($6::TEXT IS NULL OR (
+		pt.payout_transaction_id ILIKE '%'||$6||'%' OR
+		pt.partner_request_id ILIKE '%'||$6||'%' OR
+		COALESCE(pt.operator_transaction_id, '') ILIKE '%'||$6||'%' OR
+		COALESCE(pt.order_id, '') ILIKE '%'||$6||'%' OR
+		pt.mobile_number ILIKE '%'||$6||'%'
+	))
 	ORDER BY pt.created_at DESC
 	LIMIT $1 OFFSET $2;
 	`
-	return scanPayoutTransactions(ps.db, q, p.Limit, p.Offset, p.StartDate, p.EndDate)
+	return scanPayoutTransactions(ps.db, q, p.Limit, p.Offset, p.StartDate, p.EndDate, p.Status, p.Search)
 }
 
 func (ps *PostgresPayoutTransactionStore) GetPayoutTransactionsByRetailerID(retailerID string, p utils.QueryParams) ([]models.PayoutTransactionModel, error) {
@@ -334,10 +342,18 @@ func (ps *PostgresPayoutTransactionStore) GetPayoutTransactionsByRetailerID(reta
 	WHERE pt.retailer_id = $1
 	AND pt.created_at >= COALESCE($4, '-infinity'::TIMESTAMPTZ)
 	AND pt.created_at <= COALESCE($5, 'infinity'::TIMESTAMPTZ)
+	AND ($6::TEXT IS NULL OR pt.payout_transaction_status = $6)
+	AND ($7::TEXT IS NULL OR (
+		pt.payout_transaction_id ILIKE '%'||$7||'%' OR
+		pt.partner_request_id ILIKE '%'||$7||'%' OR
+		COALESCE(pt.operator_transaction_id, '') ILIKE '%'||$7||'%' OR
+		COALESCE(pt.order_id, '') ILIKE '%'||$7||'%' OR
+		pt.mobile_number ILIKE '%'||$7||'%'
+	))
 	ORDER BY pt.created_at DESC
 	LIMIT $2 OFFSET $3;
 	`
-	return scanPayoutTransactions(ps.db, q, retailerID, p.Limit, p.Offset, p.StartDate, p.EndDate)
+	return scanPayoutTransactions(ps.db, q, retailerID, p.Limit, p.Offset, p.StartDate, p.EndDate, p.Status, p.Search)
 }
 
 func (ps *PostgresPayoutTransactionStore) GetPayoutTransactionsByDistributorID(distributorID string, p utils.QueryParams) ([]models.PayoutTransactionModel, error) {
@@ -345,10 +361,18 @@ func (ps *PostgresPayoutTransactionStore) GetPayoutTransactionsByDistributorID(d
 	WHERE r.distributor_id = $1
 	AND pt.created_at >= COALESCE($4, '-infinity'::TIMESTAMPTZ)
 	AND pt.created_at <= COALESCE($5, 'infinity'::TIMESTAMPTZ)
+	AND ($6::TEXT IS NULL OR pt.payout_transaction_status = $6)
+	AND ($7::TEXT IS NULL OR (
+		pt.payout_transaction_id ILIKE '%'||$7||'%' OR
+		pt.partner_request_id ILIKE '%'||$7||'%' OR
+		COALESCE(pt.operator_transaction_id, '') ILIKE '%'||$7||'%' OR
+		COALESCE(pt.order_id, '') ILIKE '%'||$7||'%' OR
+		pt.mobile_number ILIKE '%'||$7||'%'
+	))
 	ORDER BY pt.created_at DESC
 	LIMIT $2 OFFSET $3;
 	`
-	return scanPayoutTransactions(ps.db, q, distributorID, p.Limit, p.Offset, p.StartDate, p.EndDate)
+	return scanPayoutTransactions(ps.db, q, distributorID, p.Limit, p.Offset, p.StartDate, p.EndDate, p.Status, p.Search)
 }
 
 func (ps *PostgresPayoutTransactionStore) GetPayoutTransactionsByMasterDistributorID(mdID string, p utils.QueryParams) ([]models.PayoutTransactionModel, error) {
@@ -357,10 +381,18 @@ func (ps *PostgresPayoutTransactionStore) GetPayoutTransactionsByMasterDistribut
 	WHERE d.master_distributor_id = $1
 	AND pt.created_at >= COALESCE($4, '-infinity'::TIMESTAMPTZ)
 	AND pt.created_at <= COALESCE($5, 'infinity'::TIMESTAMPTZ)
+	AND ($6::TEXT IS NULL OR pt.payout_transaction_status = $6)
+	AND ($7::TEXT IS NULL OR (
+		pt.payout_transaction_id ILIKE '%'||$7||'%' OR
+		pt.partner_request_id ILIKE '%'||$7||'%' OR
+		COALESCE(pt.operator_transaction_id, '') ILIKE '%'||$7||'%' OR
+		COALESCE(pt.order_id, '') ILIKE '%'||$7||'%' OR
+		pt.mobile_number ILIKE '%'||$7||'%'
+	))
 	ORDER BY pt.created_at DESC
 	LIMIT $2 OFFSET $3;
 	`
-	return scanPayoutTransactions(ps.db, q, mdID, p.Limit, p.Offset, p.StartDate, p.EndDate)
+	return scanPayoutTransactions(ps.db, q, mdID, p.Limit, p.Offset, p.StartDate, p.EndDate, p.Status, p.Search)
 }
 
 func scanPayoutTransactions(db *sql.DB, query string, args ...any) ([]models.PayoutTransactionModel, error) {

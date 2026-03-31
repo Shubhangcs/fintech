@@ -207,9 +207,16 @@ func (es *PostgresElectricityBillStore) GetAllElectricityBills(p utils.QueryPara
 	q := electricityBillSelectBase + `
 	WHERE eb.created_at >= COALESCE($3, '-infinity'::TIMESTAMPTZ)
 	AND eb.created_at <= COALESCE($4, 'infinity'::TIMESTAMPTZ)
+	AND ($5::TEXT IS NULL OR eb.transaction_status = $5)
+	AND ($6::TEXT IS NULL OR (
+		COALESCE(eb.operator_transaction_id, '') ILIKE '%'||$6||'%' OR
+		COALESCE(eb.order_id, '') ILIKE '%'||$6||'%' OR
+		eb.partner_request_id ILIKE '%'||$6||'%' OR
+		eb.customer_id ILIKE '%'||$6||'%'
+	))
 	ORDER BY eb.created_at DESC
 	LIMIT $1 OFFSET $2;`
-	return scanElectricityBills(es.db, q, p.Limit, p.Offset, p.StartDate, p.EndDate)
+	return scanElectricityBills(es.db, q, p.Limit, p.Offset, p.StartDate, p.EndDate, p.Status, p.Search)
 }
 
 func (es *PostgresElectricityBillStore) GetElectricityBillsByRetailerID(retailerID string, p utils.QueryParams) ([]models.ElectricityBillModel, error) {
@@ -217,9 +224,16 @@ func (es *PostgresElectricityBillStore) GetElectricityBillsByRetailerID(retailer
 	WHERE eb.retailer_id = $1
 	AND eb.created_at >= COALESCE($4, '-infinity'::TIMESTAMPTZ)
 	AND eb.created_at <= COALESCE($5, 'infinity'::TIMESTAMPTZ)
+	AND ($6::TEXT IS NULL OR eb.transaction_status = $6)
+	AND ($7::TEXT IS NULL OR (
+		COALESCE(eb.operator_transaction_id, '') ILIKE '%'||$7||'%' OR
+		COALESCE(eb.order_id, '') ILIKE '%'||$7||'%' OR
+		eb.partner_request_id ILIKE '%'||$7||'%' OR
+		eb.customer_id ILIKE '%'||$7||'%'
+	))
 	ORDER BY eb.created_at DESC
 	LIMIT $2 OFFSET $3;`
-	return scanElectricityBills(es.db, q, retailerID, p.Limit, p.Offset, p.StartDate, p.EndDate)
+	return scanElectricityBills(es.db, q, retailerID, p.Limit, p.Offset, p.StartDate, p.EndDate, p.Status, p.Search)
 }
 
 func (es *PostgresElectricityBillStore) GetElectricityBillsByDistributorID(distributorID string, p utils.QueryParams) ([]models.ElectricityBillModel, error) {
@@ -228,9 +242,16 @@ func (es *PostgresElectricityBillStore) GetElectricityBillsByDistributorID(distr
 	WHERE d.distributor_id = $1
 	AND eb.created_at >= COALESCE($4, '-infinity'::TIMESTAMPTZ)
 	AND eb.created_at <= COALESCE($5, 'infinity'::TIMESTAMPTZ)
+	AND ($6::TEXT IS NULL OR eb.transaction_status = $6)
+	AND ($7::TEXT IS NULL OR (
+		COALESCE(eb.operator_transaction_id, '') ILIKE '%'||$7||'%' OR
+		COALESCE(eb.order_id, '') ILIKE '%'||$7||'%' OR
+		eb.partner_request_id ILIKE '%'||$7||'%' OR
+		eb.customer_id ILIKE '%'||$7||'%'
+	))
 	ORDER BY eb.created_at DESC
 	LIMIT $2 OFFSET $3;`
-	return scanElectricityBills(es.db, q, distributorID, p.Limit, p.Offset, p.StartDate, p.EndDate)
+	return scanElectricityBills(es.db, q, distributorID, p.Limit, p.Offset, p.StartDate, p.EndDate, p.Status, p.Search)
 }
 
 func (es *PostgresElectricityBillStore) GetElectricityBillsByMasterDistributorID(mdID string, p utils.QueryParams) ([]models.ElectricityBillModel, error) {
@@ -240,9 +261,16 @@ func (es *PostgresElectricityBillStore) GetElectricityBillsByMasterDistributorID
 	WHERE md.master_distributor_id = $1
 	AND eb.created_at >= COALESCE($4, '-infinity'::TIMESTAMPTZ)
 	AND eb.created_at <= COALESCE($5, 'infinity'::TIMESTAMPTZ)
+	AND ($6::TEXT IS NULL OR eb.transaction_status = $6)
+	AND ($7::TEXT IS NULL OR (
+		COALESCE(eb.operator_transaction_id, '') ILIKE '%'||$7||'%' OR
+		COALESCE(eb.order_id, '') ILIKE '%'||$7||'%' OR
+		eb.partner_request_id ILIKE '%'||$7||'%' OR
+		eb.customer_id ILIKE '%'||$7||'%'
+	))
 	ORDER BY eb.created_at DESC
 	LIMIT $2 OFFSET $3;`
-	return scanElectricityBills(es.db, q, mdID, p.Limit, p.Offset, p.StartDate, p.EndDate)
+	return scanElectricityBills(es.db, q, mdID, p.Limit, p.Offset, p.StartDate, p.EndDate, p.Status, p.Search)
 }
 
 func scanElectricityBills(db *sql.DB, q string, args ...any) ([]models.ElectricityBillModel, error) {

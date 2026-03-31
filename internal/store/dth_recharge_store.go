@@ -264,9 +264,16 @@ func (ds *PostgresDTHRechargeStore) GetAllDTHRecharge(p utils.QueryParams) ([]mo
 	q := dthRechargeSelectBase + `
 	WHERE dr.created_at >= COALESCE($3, '-infinity'::TIMESTAMPTZ)
 	AND dr.created_at <= COALESCE($4, 'infinity'::TIMESTAMPTZ)
+	AND ($5::TEXT IS NULL OR dr.status = $5)
+	AND ($6::TEXT IS NULL OR (
+		COALESCE(dr.operator_transaction_id, '') ILIKE '%'||$6||'%' OR
+		COALESCE(dr.order_id, '') ILIKE '%'||$6||'%' OR
+		dr.partner_request_id ILIKE '%'||$6||'%' OR
+		dr.customer_id ILIKE '%'||$6||'%'
+	))
 	ORDER BY dr.created_at DESC
 	LIMIT $1 OFFSET $2;`
-	return scanDTHRecharges(ds.db, q, p.Limit, p.Offset, p.StartDate, p.EndDate)
+	return scanDTHRecharges(ds.db, q, p.Limit, p.Offset, p.StartDate, p.EndDate, p.Status, p.Search)
 }
 
 func (ds *PostgresDTHRechargeStore) GetDTHRechargeByRetailerID(retailerID string, p utils.QueryParams) ([]models.DTHRechargeModel, error) {
@@ -274,9 +281,16 @@ func (ds *PostgresDTHRechargeStore) GetDTHRechargeByRetailerID(retailerID string
 	WHERE dr.retailer_id = $1
 	AND dr.created_at >= COALESCE($4, '-infinity'::TIMESTAMPTZ)
 	AND dr.created_at <= COALESCE($5, 'infinity'::TIMESTAMPTZ)
+	AND ($6::TEXT IS NULL OR dr.status = $6)
+	AND ($7::TEXT IS NULL OR (
+		COALESCE(dr.operator_transaction_id, '') ILIKE '%'||$7||'%' OR
+		COALESCE(dr.order_id, '') ILIKE '%'||$7||'%' OR
+		dr.partner_request_id ILIKE '%'||$7||'%' OR
+		dr.customer_id ILIKE '%'||$7||'%'
+	))
 	ORDER BY dr.created_at DESC
 	LIMIT $2 OFFSET $3;`
-	return scanDTHRecharges(ds.db, q, retailerID, p.Limit, p.Offset, p.StartDate, p.EndDate)
+	return scanDTHRecharges(ds.db, q, retailerID, p.Limit, p.Offset, p.StartDate, p.EndDate, p.Status, p.Search)
 }
 
 func (ds *PostgresDTHRechargeStore) GetDTHRechargeByDistributorID(distributorID string, p utils.QueryParams) ([]models.DTHRechargeModel, error) {
@@ -285,9 +299,16 @@ func (ds *PostgresDTHRechargeStore) GetDTHRechargeByDistributorID(distributorID 
 	WHERE d.distributor_id = $1
 	AND dr.created_at >= COALESCE($4, '-infinity'::TIMESTAMPTZ)
 	AND dr.created_at <= COALESCE($5, 'infinity'::TIMESTAMPTZ)
+	AND ($6::TEXT IS NULL OR dr.status = $6)
+	AND ($7::TEXT IS NULL OR (
+		COALESCE(dr.operator_transaction_id, '') ILIKE '%'||$7||'%' OR
+		COALESCE(dr.order_id, '') ILIKE '%'||$7||'%' OR
+		dr.partner_request_id ILIKE '%'||$7||'%' OR
+		dr.customer_id ILIKE '%'||$7||'%'
+	))
 	ORDER BY dr.created_at DESC
 	LIMIT $2 OFFSET $3;`
-	return scanDTHRecharges(ds.db, q, distributorID, p.Limit, p.Offset, p.StartDate, p.EndDate)
+	return scanDTHRecharges(ds.db, q, distributorID, p.Limit, p.Offset, p.StartDate, p.EndDate, p.Status, p.Search)
 }
 
 func (ds *PostgresDTHRechargeStore) GetDTHRechargeByMasterDistributorID(mdID string, p utils.QueryParams) ([]models.DTHRechargeModel, error) {
@@ -297,9 +318,16 @@ func (ds *PostgresDTHRechargeStore) GetDTHRechargeByMasterDistributorID(mdID str
 	WHERE md.master_distributor_id = $1
 	AND dr.created_at >= COALESCE($4, '-infinity'::TIMESTAMPTZ)
 	AND dr.created_at <= COALESCE($5, 'infinity'::TIMESTAMPTZ)
+	AND ($6::TEXT IS NULL OR dr.status = $6)
+	AND ($7::TEXT IS NULL OR (
+		COALESCE(dr.operator_transaction_id, '') ILIKE '%'||$7||'%' OR
+		COALESCE(dr.order_id, '') ILIKE '%'||$7||'%' OR
+		dr.partner_request_id ILIKE '%'||$7||'%' OR
+		dr.customer_id ILIKE '%'||$7||'%'
+	))
 	ORDER BY dr.created_at DESC
 	LIMIT $2 OFFSET $3;`
-	return scanDTHRecharges(ds.db, q, mdID, p.Limit, p.Offset, p.StartDate, p.EndDate)
+	return scanDTHRecharges(ds.db, q, mdID, p.Limit, p.Offset, p.StartDate, p.EndDate, p.Status, p.Search)
 }
 
 func scanDTHRecharges(db *sql.DB, q string, args ...any) ([]models.DTHRechargeModel, error) {

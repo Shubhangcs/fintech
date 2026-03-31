@@ -19,6 +19,58 @@ func NewBusHandler(logger *slog.Logger) *BusHandler {
 	return &BusHandler{logger: logger}
 }
 
+// POST /bus/block-tickets
+func (bh *BusHandler) HandleBlockBusTicket(w http.ResponseWriter, r *http.Request) {
+	var req models.BusBlockTicketRequestModel
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.BadRequest(w, bh.logger, "block bus ticket", err)
+		return
+	}
+
+	if req.OperatorID == "" || req.ServiceID == "" || req.SourceStationID == "" ||
+		req.DestinationStationID == "" || req.JourneyDate == "" || req.BoardingPointID == "" ||
+		req.DroppingPointID == "" || req.ContactNumber == "" || req.EmailID == "" ||
+		len(req.NamesList) == 0 || len(req.SeatNumbersList) == 0 {
+		utils.BadRequest(w, bh.logger, "block bus ticket", fmt.Errorf("required fields are missing"))
+		return
+	}
+
+	req.PartnerRequestID = uuid.NewString()
+
+	var resp models.BusBlockTicketResponseModel
+	err := utils.PostRequest(utils.RechargeKitAPI2+"/bus/blockTickets", "Authorization", bh.busAuthHeader(), map[string]any{
+		"operator_Id":          req.OperatorID,
+		"partner_request_Id":   req.PartnerRequestID,
+		"boardingPoint_ID":     req.BoardingPointID,
+		"service_Id":           req.ServiceID,
+		"sourceStation_Id":     req.SourceStationID,
+		"destinationStation_Id": req.DestinationStationID,
+		"journeyDate":          req.JourneyDate,
+		"layout_Id":            req.LayoutID,
+		"droppingPoint_ID":     req.DroppingPointID,
+		"address":              req.Address,
+		"contactNumber":        req.ContactNumber,
+		"email_Id":             req.EmailID,
+		"namesList":            req.NamesList,
+		"gendersList":          req.GendersList,
+		"ageList":              req.AgeList,
+		"seatNumbersList":      req.SeatNumbersList,
+		"seatFareList":         req.SeatFareList,
+		"seatTypeIds":          req.SeatTypeIds,
+		"isAcSeat":             req.IsAcSeat,
+		"serviceTaxList":       req.ServiceTaxList,
+		"seatLayoutUnique_Id":  req.SeatLayoutUniqueID,
+		"isSingleLady":         req.IsSingleLady,
+		"additionalInfoLabel":  req.AdditionalInfoLabel,
+	}, &resp)
+	if err != nil {
+		utils.ServerError(w, bh.logger, "block bus ticket", err)
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusOK, utils.Envelope{"response": resp})
+}
+
 func (bh *BusHandler) busAuthHeader() string {
 	return "Bearer " + utils.RechargeKitAPIToken
 }

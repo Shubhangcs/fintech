@@ -104,11 +104,15 @@ func (ws *PostgresWalletTransactionStore) GetWalletTransactionsByUserID(userID s
 	WHERE wt.user_id = $1
 	AND wt.created_at >= COALESCE($4, '-infinity'::TIMESTAMPTZ)
 	AND wt.created_at <= COALESCE($5, 'infinity'::TIMESTAMPTZ)
+	AND ($6::TEXT IS NULL OR (
+		wt.reference_id ILIKE '%'||$6||'%' OR
+		wt.transaction_reason ILIKE '%'||$6||'%'
+	))
 	ORDER BY wt.created_at DESC
 	LIMIT $2 OFFSET $3;
 	`
 
-	rows, err := ws.db.Query(query, userID, p.Limit, p.Offset, p.StartDate, p.EndDate)
+	rows, err := ws.db.Query(query, userID, p.Limit, p.Offset, p.StartDate, p.EndDate, p.Search)
 	if err != nil {
 		return nil, err
 	}

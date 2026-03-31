@@ -30,6 +30,8 @@ type QueryParams struct {
 	Offset    int
 	StartDate *time.Time
 	EndDate   *time.Time
+	Status    *string
+	Search    *string
 }
 
 func ReadQueryParams(r *http.Request) QueryParams {
@@ -43,10 +45,23 @@ func ReadQueryParams(r *http.Request) QueryParams {
 		t := endDate.Add(24*time.Hour - time.Second)
 		endDate = &t
 	}
+
+	var status *string
+	if s := r.URL.Query().Get("status"); s != "" {
+		status = &s
+	}
+
+	var search *string
+	if s := r.URL.Query().Get("search"); s != "" {
+		search = &s
+	}
+
 	return QueryParams{
 		Limit:     p.Limit,
 		Offset:    p.Offset,
 		StartDate: startDate,
 		EndDate:   endDate,
+		Status:    status,
+		Search:    search,
 	}
 }

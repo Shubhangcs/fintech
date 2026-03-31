@@ -73,3 +73,38 @@ type BusAvailableService struct {
 	IsSingleLady       string   `json:"isSingleLady"`
 	AllowedConcessions []any    `json:"allowedConcessions"`
 }
+
+type BusBlockTicketRequestModel struct {
+	OperatorID           string   `json:"operator_Id"`
+	PartnerRequestID     string   `json:"partner_request_Id"`
+	BoardingPointID      string   `json:"boardingPoint_ID"`
+	ServiceID            string   `json:"service_Id"`
+	SourceStationID      string   `json:"sourceStation_Id"`
+	DestinationStationID string   `json:"destinationStation_Id"`
+	JourneyDate          string   `json:"journeyDate"`
+	LayoutID             string   `json:"layout_Id"`
+	DroppingPointID      string   `json:"droppingPoint_ID"`
+	Address              string   `json:"address"`
+	ContactNumber        string   `json:"contactNumber"`
+	EmailID              string   `json:"email_Id"`
+	NamesList            []string `json:"namesList"`
+	GendersList          []string `json:"gendersList"`
+	AgeList              []string `json:"ageList"`
+	SeatNumbersList      []string `json:"seatNumbersList"`
+	SeatFareList         []string `json:"seatFareList"`
+	SeatTypeIds          string   `json:"seatTypeIds"`
+	IsAcSeat             string   `json:"isAcSeat"`
+	ServiceTaxList       []string `json:"serviceTaxList"`
+	SeatLayoutUniqueID   string   `json:"seatLayoutUnique_Id"`
+	IsSingleLady         string   `json:"isSingleLady"`
+	AdditionalInfoLabel  string   `json:"additionalInfoLabel"`
+}
+
+type BusBlockTicketResponseModel struct {
+	Error       int    `json:"error"`
+	Message     string `json:"msg"`
+	Status      int    `json:"status"`
+	OrderID     string `json:"orderid"`
+	ReferenceNo string `json:"referenceno"`
+	PartnerReqID string `json:"partnerreq_Id"`
+}

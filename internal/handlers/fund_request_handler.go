@@ -130,7 +130,7 @@ func (fh *FundRequestHandler) HandleRejectFundRequest(w http.ResponseWriter, r *
 		utils.BadRequest(w, fh.logger, "reject fund request", err)
 		return
 	}
-	if req.RejectRemarks == nil {
+	if req.RejectRemarks == nil || *req.RejectRemarks == "" {
 		utils.BadRequest(w, fh.logger, "reject fund request", errors.New("reject_remarks is required"))
 		return
 	}
@@ -231,6 +231,7 @@ func (fh *FundRequestHandler) HandleUploadFundRequestRecipt(w http.ResponseWrite
 	utils.WriteJSON(w, http.StatusOK, utils.Envelope{
 		"message": "fund request recipt upload url generated successfully",
 		"url":     url,
+		"path":    key,
 	})
 }
 

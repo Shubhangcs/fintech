@@ -276,9 +276,16 @@ func (ms *PostgresMobileRechargeStore) GetAllMobileRecharge(p utils.QueryParams)
 	q := mobileRechargeSelectBase + `
 	WHERE mr.created_at >= COALESCE($3, '-infinity'::TIMESTAMPTZ)
 	AND mr.created_at <= COALESCE($4, 'infinity'::TIMESTAMPTZ)
+	AND ($5::TEXT IS NULL OR mr.recharge_status = $5)
+	AND ($6::TEXT IS NULL OR (
+		COALESCE(mr.operator_transaction_id, '') ILIKE '%'||$6||'%' OR
+		COALESCE(mr.order_id, '') ILIKE '%'||$6||'%' OR
+		mr.partner_request_id ILIKE '%'||$6||'%' OR
+		mr.mobile_number ILIKE '%'||$6||'%'
+	))
 	ORDER BY mr.created_at DESC
 	LIMIT $1 OFFSET $2;`
-	return scanMobileRecharges(ms.db, q, p.Limit, p.Offset, p.StartDate, p.EndDate)
+	return scanMobileRecharges(ms.db, q, p.Limit, p.Offset, p.StartDate, p.EndDate, p.Status, p.Search)
 }
 
 func (ms *PostgresMobileRechargeStore) GetMobileRechargeByRetailerID(retailerID string, p utils.QueryParams) ([]models.MobileRechargeModel, error) {
@@ -286,9 +293,16 @@ func (ms *PostgresMobileRechargeStore) GetMobileRechargeByRetailerID(retailerID 
 	WHERE mr.retailer_id = $1
 	AND mr.created_at >= COALESCE($4, '-infinity'::TIMESTAMPTZ)
 	AND mr.created_at <= COALESCE($5, 'infinity'::TIMESTAMPTZ)
+	AND ($6::TEXT IS NULL OR mr.recharge_status = $6)
+	AND ($7::TEXT IS NULL OR (
+		COALESCE(mr.operator_transaction_id, '') ILIKE '%'||$7||'%' OR
+		COALESCE(mr.order_id, '') ILIKE '%'||$7||'%' OR
+		mr.partner_request_id ILIKE '%'||$7||'%' OR
+		mr.mobile_number ILIKE '%'||$7||'%'
+	))
 	ORDER BY mr.created_at DESC
 	LIMIT $2 OFFSET $3;`
-	return scanMobileRecharges(ms.db, q, retailerID, p.Limit, p.Offset, p.StartDate, p.EndDate)
+	return scanMobileRecharges(ms.db, q, retailerID, p.Limit, p.Offset, p.StartDate, p.EndDate, p.Status, p.Search)
 }
 
 func (ms *PostgresMobileRechargeStore) GetMobileRechargeByDistributorID(distributorID string, p utils.QueryParams) ([]models.MobileRechargeModel, error) {
@@ -297,9 +311,16 @@ func (ms *PostgresMobileRechargeStore) GetMobileRechargeByDistributorID(distribu
 	WHERE d.distributor_id = $1
 	AND mr.created_at >= COALESCE($4, '-infinity'::TIMESTAMPTZ)
 	AND mr.created_at <= COALESCE($5, 'infinity'::TIMESTAMPTZ)
+	AND ($6::TEXT IS NULL OR mr.recharge_status = $6)
+	AND ($7::TEXT IS NULL OR (
+		COALESCE(mr.operator_transaction_id, '') ILIKE '%'||$7||'%' OR
+		COALESCE(mr.order_id, '') ILIKE '%'||$7||'%' OR
+		mr.partner_request_id ILIKE '%'||$7||'%' OR
+		mr.mobile_number ILIKE '%'||$7||'%'
+	))
 	ORDER BY mr.created_at DESC
 	LIMIT $2 OFFSET $3;`
-	return scanMobileRecharges(ms.db, q, distributorID, p.Limit, p.Offset, p.StartDate, p.EndDate)
+	return scanMobileRecharges(ms.db, q, distributorID, p.Limit, p.Offset, p.StartDate, p.EndDate, p.Status, p.Search)
 }
 
 func (ms *PostgresMobileRechargeStore) GetMobileRechargeByMasterDistributorID(mdID string, p utils.QueryParams) ([]models.MobileRechargeModel, error) {
@@ -309,9 +330,16 @@ func (ms *PostgresMobileRechargeStore) GetMobileRechargeByMasterDistributorID(md
 	WHERE md.master_distributor_id = $1
 	AND mr.created_at >= COALESCE($4, '-infinity'::TIMESTAMPTZ)
 	AND mr.created_at <= COALESCE($5, 'infinity'::TIMESTAMPTZ)
+	AND ($6::TEXT IS NULL OR mr.recharge_status = $6)
+	AND ($7::TEXT IS NULL OR (
+		COALESCE(mr.operator_transaction_id, '') ILIKE '%'||$7||'%' OR
+		COALESCE(mr.order_id, '') ILIKE '%'||$7||'%' OR
+		mr.partner_request_id ILIKE '%'||$7||'%' OR
+		mr.mobile_number ILIKE '%'||$7||'%'
+	))
 	ORDER BY mr.created_at DESC
 	LIMIT $2 OFFSET $3;`
-	return scanMobileRecharges(ms.db, q, mdID, p.Limit, p.Offset, p.StartDate, p.EndDate)
+	return scanMobileRecharges(ms.db, q, mdID, p.Limit, p.Offset, p.StartDate, p.EndDate, p.Status, p.Search)
 }
 
 func scanMobileRecharges(db *sql.DB, q string, args ...any) ([]models.MobileRechargeModel, error) {
