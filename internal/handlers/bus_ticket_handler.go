@@ -53,7 +53,7 @@ func (bh *BusHandler) HandleGetAvailableServices(w http.ResponseWriter, r *http.
 		return
 	}
 
-	if req.SourceStationID == "" || req.DestinationStationID == "" || req.JourneyDate == "" {
+	if req.JourneyDate == "" {
 		utils.BadRequest(w, bh.logger, "get available bus services", fmt.Errorf("sourceStation_Id, destinationStationId and journeyDate are required"))
 		return
 	}
