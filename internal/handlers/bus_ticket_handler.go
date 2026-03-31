@@ -87,14 +87,14 @@ func (bh *BusHandler) HandleGetServiceSeatingLayout(w http.ResponseWriter, r *ht
 
 	var resp json.RawMessage
 	err := utils.PostRequest(utils.RechargeKitAPI2+"/bus/seatMap", "Authorization", bh.busAuthHeader(), map[string]any{
-		"operator_Id":           req.OperatorID,
-		"service_Id":            req.ServiceID,
-		"sourceStation_Id":      req.SourceStationID,
-		"destinationStation_Id": req.DestinationStationID,
-		"journeyDate":           req.JourneyDate,
-		"layoutId":              req.LayoutID,
-		"seatFare":              req.SeatFare,
-		"partnerreqid":          req.PartnerRequestID,
+		"operator_Id":          req.OperatorID,
+		"service_Id":           req.ServiceID,
+		"sourceStationId":      req.SourceStationID,
+		"destinationStationId": req.DestinationStationID,
+		"journeyDate":          req.JourneyDate,
+		"layoutId":             req.LayoutID,
+		"seatFare":             req.SeatFare,
+		"partnerreqid":         req.PartnerRequestID,
 	}, &resp)
 	if err != nil {
 		utils.ServerError(w, bh.logger, "get bus seating layout", err)
