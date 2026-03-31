@@ -24,10 +24,10 @@ type BusOperatorModel struct {
 }
 
 type BusSeatingLayoutRequestModel struct {
-	OperatorID           int    `json:"operator_id"`
+	OperatorID           string `json:"operator_id"`
 	ServiceID            string `json:"service_id"`
-	SourceStationID      int    `json:"source_station_id"`
-	DestinationStationID int    `json:"destination_station_id"`
+	SourceStationID      string `json:"source_station_id"`
+	DestinationStationID string `json:"destination_station_id"`
 	JourneyDate          string `json:"journey_date"`
 	LayoutID             int    `json:"layout_id"`
 	SeatFare             int    `json:"seat_fare"`

@@ -80,7 +80,7 @@ func (bh *BusHandler) HandleGetServiceSeatingLayout(w http.ResponseWriter, r *ht
 	}
 	req.PartnerRequestID = uuid.NewString()
 
-	if req.OperatorID == 0 || req.ServiceID == "" || req.SourceStationID == 0 || req.DestinationStationID == 0 || req.JourneyDate == "" {
+	if req.OperatorID == "" || req.ServiceID == "" || req.SourceStationID == "" || req.DestinationStationID == "" || req.JourneyDate == "" {
 		utils.BadRequest(w, bh.logger, "get bus seating layout", fmt.Errorf("operator_Id, service_Id, sourceStation_Id, destinationStation_Id and journeyDate are required"))
 		return
 	}
