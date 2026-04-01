@@ -325,7 +325,7 @@ func (ps *PostgresPayoutTransactionStore) GetAllPayoutTransactions(p utils.Query
 	AND pt.created_at <= COALESCE($4, 'infinity'::TIMESTAMPTZ)
 	AND ($5::TEXT IS NULL OR pt.payout_transaction_status = $5)
 	AND ($6::TEXT IS NULL OR (
-		pt.payout_transaction_id ILIKE '%'||$6||'%' OR
+		pt.payout_transaction_id::TEXT ILIKE '%'||$6||'%' OR
 		pt.partner_request_id ILIKE '%'||$6||'%' OR
 		COALESCE(pt.operator_transaction_id, '') ILIKE '%'||$6||'%' OR
 		COALESCE(pt.order_id, '') ILIKE '%'||$6||'%' OR
@@ -344,7 +344,7 @@ func (ps *PostgresPayoutTransactionStore) GetPayoutTransactionsByRetailerID(reta
 	AND pt.created_at <= COALESCE($5, 'infinity'::TIMESTAMPTZ)
 	AND ($6::TEXT IS NULL OR pt.payout_transaction_status = $6)
 	AND ($7::TEXT IS NULL OR (
-		pt.payout_transaction_id ILIKE '%'||$7||'%' OR
+		pt.payout_transaction_id::TEXT ILIKE '%'||$7||'%' OR
 		pt.partner_request_id ILIKE '%'||$7||'%' OR
 		COALESCE(pt.operator_transaction_id, '') ILIKE '%'||$7||'%' OR
 		COALESCE(pt.order_id, '') ILIKE '%'||$7||'%' OR
@@ -363,7 +363,7 @@ func (ps *PostgresPayoutTransactionStore) GetPayoutTransactionsByDistributorID(d
 	AND pt.created_at <= COALESCE($5, 'infinity'::TIMESTAMPTZ)
 	AND ($6::TEXT IS NULL OR pt.payout_transaction_status = $6)
 	AND ($7::TEXT IS NULL OR (
-		pt.payout_transaction_id ILIKE '%'||$7||'%' OR
+		pt.payout_transaction_id::TEXT ILIKE '%'||$7||'%' OR
 		pt.partner_request_id ILIKE '%'||$7||'%' OR
 		COALESCE(pt.operator_transaction_id, '') ILIKE '%'||$7||'%' OR
 		COALESCE(pt.order_id, '') ILIKE '%'||$7||'%' OR
@@ -383,7 +383,7 @@ func (ps *PostgresPayoutTransactionStore) GetPayoutTransactionsByMasterDistribut
 	AND pt.created_at <= COALESCE($5, 'infinity'::TIMESTAMPTZ)
 	AND ($6::TEXT IS NULL OR pt.payout_transaction_status = $6)
 	AND ($7::TEXT IS NULL OR (
-		pt.payout_transaction_id ILIKE '%'||$7||'%' OR
+		pt.payout_transaction_id::TEXT ILIKE '%'||$7||'%' OR
 		pt.partner_request_id ILIKE '%'||$7||'%' OR
 		COALESCE(pt.operator_transaction_id, '') ILIKE '%'||$7||'%' OR
 		COALESCE(pt.order_id, '') ILIKE '%'||$7||'%' OR
