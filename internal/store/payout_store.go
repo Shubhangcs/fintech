@@ -326,7 +326,7 @@ func (ps *PostgresPayoutTransactionStore) GetAllPayoutTransactions(p utils.Query
 	AND ($5::TEXT IS NULL OR pt.payout_transaction_status = $5)
 	AND ($6::TEXT IS NULL OR (
 		pt.payout_transaction_id::TEXT ILIKE '%'||$6||'%' OR
-		pt.partner_request_id ILIKE '%'||$6||'%' OR
+		pt.partner_request_id::TEXT ILIKE '%'||$6||'%' OR
 		COALESCE(pt.operator_transaction_id, '') ILIKE '%'||$6||'%' OR
 		COALESCE(pt.order_id, '') ILIKE '%'||$6||'%' OR
 		pt.mobile_number ILIKE '%'||$6||'%'
@@ -345,7 +345,7 @@ func (ps *PostgresPayoutTransactionStore) GetPayoutTransactionsByRetailerID(reta
 	AND ($6::TEXT IS NULL OR pt.payout_transaction_status = $6)
 	AND ($7::TEXT IS NULL OR (
 		pt.payout_transaction_id::TEXT ILIKE '%'||$7||'%' OR
-		pt.partner_request_id ILIKE '%'||$7||'%' OR
+		pt.partner_request_id::TEXT ILIKE '%'||$7||'%' OR
 		COALESCE(pt.operator_transaction_id, '') ILIKE '%'||$7||'%' OR
 		COALESCE(pt.order_id, '') ILIKE '%'||$7||'%' OR
 		pt.mobile_number ILIKE '%'||$7||'%'
@@ -364,7 +364,7 @@ func (ps *PostgresPayoutTransactionStore) GetPayoutTransactionsByDistributorID(d
 	AND ($6::TEXT IS NULL OR pt.payout_transaction_status = $6)
 	AND ($7::TEXT IS NULL OR (
 		pt.payout_transaction_id::TEXT ILIKE '%'||$7||'%' OR
-		pt.partner_request_id ILIKE '%'||$7||'%' OR
+		pt.partner_request_id::TEXT ILIKE '%'||$7||'%' OR
 		COALESCE(pt.operator_transaction_id, '') ILIKE '%'||$7||'%' OR
 		COALESCE(pt.order_id, '') ILIKE '%'||$7||'%' OR
 		pt.mobile_number ILIKE '%'||$7||'%'
@@ -384,7 +384,7 @@ func (ps *PostgresPayoutTransactionStore) GetPayoutTransactionsByMasterDistribut
 	AND ($6::TEXT IS NULL OR pt.payout_transaction_status = $6)
 	AND ($7::TEXT IS NULL OR (
 		pt.payout_transaction_id::TEXT ILIKE '%'||$7||'%' OR
-		pt.partner_request_id ILIKE '%'||$7||'%' OR
+		pt.partner_request_id::TEXT ILIKE '%'||$7||'%' OR
 		COALESCE(pt.operator_transaction_id, '') ILIKE '%'||$7||'%' OR
 		COALESCE(pt.order_id, '') ILIKE '%'||$7||'%' OR
 		pt.mobile_number ILIKE '%'||$7||'%'
