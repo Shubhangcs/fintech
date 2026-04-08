@@ -241,7 +241,9 @@ func (ps *PostgresPayoutTransactionStore) RefundPayout(payoutTransactionID strin
 	commisionRemarks := fmt.Sprintf("Payout refund commission recovery | Ref: %s", refID)
 	retailerRemarks := fmt.Sprintf("Payout refund | Ref: %s", refID)
 
-	// Debit commissions back from each recipient
+	// Debit commissions back from each recipient.
+	// Hold-amount check is intentionally skipped for refunds — this is a
+	// recovery operation and must not be blocked by the hold threshold.
 	debitCommision := func(userID string, amount float64) error {
 		if amount <= 0 {
 			return nil
@@ -250,11 +252,18 @@ func (ps *PostgresPayoutTransactionStore) RefundPayout(payoutTransactionID strin
 		if err != nil {
 			return err
 		}
-		return debitTx(tx, transaction{
+		info.HoldAmountColumnName = "" // bypass hold_amount for refund debits
+		if err = debitTx(tx, transaction{
 			UserID: userID, ReferenceID: refID,
 			Amount: amount, Reason: "PAYOUT_REFUND", Remarks: commisionRemarks,
 			userTableInfo: *info,
-		}, ps.walletStore)
+		}, ps.walletStore); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return checkExistsTx(tx, info.TableName, info.IDColumnName, userID, "user")
+			}
+			return err
+		}
+		return nil
 	}
 
 	if err = debitCommision(rc.adminID, pt.AdminCommision); err != nil {
